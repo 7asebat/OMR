@@ -11,8 +11,10 @@ from skimage.morphology import binary_closing, binary_dilation, binary_erosion, 
 from skimage.io import imread, imshow
 from skimage.filters import threshold_otsu
 from skimage.color import rgb2gray
+from BaseComponent import *
 
 import sys
+
 
 def show_images(images, titles=None):
     # This function is used to show image(s) with titles by sending an array of images and an array of associated titles.
@@ -237,6 +239,20 @@ def divide_segment(image, vHist):
     return divisions
 
 
+def divide_component(c, vHist):
+    xpos = []
+    for i in range(1, len(vHist)):
+        if(vHist[i] == True and vHist[i-1] == False):
+            xpos.append(c.x + max(0, i-1))
+    xpos.append(c.x + c.width)
+    divisions = []
+    for i in range(len(xpos)-1):
+        newDivision = BaseComponent([xpos[i], xpos[i+1], c.y, c.y+c.height])
+        divisions.append(newDivision)
+
+    return divisions
+
+
 def get_number_of_heads(vHist):
     numHeads = 0
     for i in range(1, len(vHist)):
@@ -253,19 +269,19 @@ def slice_image(image, boundingBoxes):
     return slicedImage
 
 
-def segment_image(slicedImage, slicedMasked):
-    allSegments = []
-    for idx, sm in enumerate(slicedMasked):
-        heads = extract_heads(slicedImage[idx])
+def divide_beams(baseComponents, image):
+    allBaseComponents = []
+    for idx, v in enumerate(baseComponents):
+        slicedImage = image[v.y:v.y+v.height, v.x:v.x+v.width]
+        heads = extract_heads(slicedImage)
         vHist = get_vertical_histogram(heads) > 0
         numHeads = get_number_of_heads(vHist)
         if numHeads > 1:
-            segments = divide_segment(sm, vHist)
-            allSegments = allSegments + segments
+            components = divide_component(v, vHist)
+            allBaseComponents = allBaseComponents + components
         else:
-            allSegments.append(sm)
-
-    return allSegments
+            allBaseComponents.append(v)
+    return allBaseComponents
 
 
 def get_first_run(image):
@@ -282,3 +298,11 @@ def get_first_run(image):
                 break
 
     return slice(run[0], run[1])
+
+
+def get_base_components(boundingBoxes):
+    baseComponents = []
+    for box in boundingBoxes:
+        component = BaseComponent(box)
+        baseComponents.append(component)
+    return baseComponents

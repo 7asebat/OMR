@@ -24,11 +24,14 @@ show_images(
 firstRun = get_first_run(connectedNotes)
 connectedNotes[:, firstRun] = 0
 
-# Get slices of masked
+# Get base of components from boundingBoxes
 boundingBoxes = get_bounding_boxes(connectedNotes)
-slicedImage = slice_image(image, boundingBoxes)
-slicedMasked = slice_image(masked, boundingBoxes)
+baseComponents = get_base_components(boundingBoxes)
 
-# Segment everything
-allSegments = segment_image(slicedImage, slicedMasked)
+# Cut beams into notes
+baseComponents = divide_beams(baseComponents, image)
+
+allSegments = []
+for v in baseComponents:
+    allSegments.append(masked[v.y:v.y+v.height, v.x:v.x+v.width])
 show_images(allSegments)
