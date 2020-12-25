@@ -14,6 +14,7 @@ from skimage.color import rgb2gray
 
 import sys
 
+
 def show_images(images, titles=None):
     # This function is used to show image(s) with titles by sending an array of images and an array of associated titles.
     # images[0] will be drawn with the title titles[0] if exists
@@ -167,6 +168,8 @@ def connect_notes(image, staffDim):
     return connectedNotes
 
 # Mask image
+
+
 def mask_image(connectedimage, image):
     mask = set_pixels(np.zeros(connectedimage.shape),
                       get_bounding_boxes(connectedimage))
@@ -174,6 +177,8 @@ def mask_image(connectedimage, image):
 
 # Remove non-vertical protrusions (to remove staff lines)
 # TODO: Use Hit-and-miss to remove lines instead
+
+
 def remove_non_vertical_protrusions(image, staffDim):
     SIZE = staffDim[0]+1
     SE_vertical = np.ones((SIZE, 1))
@@ -237,7 +242,7 @@ def slice_image(image, boundingBoxes):
     for box in boundingBoxes:
         [Xmin, Xmax, Ymin, Ymax] = box
         slicedBoxesOfImage.append(image[Ymin:Ymax, Xmin:Xmax])
-    return np.array(slicedBoxesOfImage)
+    return slicedBoxesOfImage
 
 
 def segment_image(slicedImage, slicedMasked, boundingBoxes):
