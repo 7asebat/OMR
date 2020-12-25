@@ -89,7 +89,7 @@ def get_bounding_boxes(image):
         yValues = np.round(c[:, 0]).astype(int)
         ar = (xValues.max() - xValues.min()) / (yValues.max() - yValues.min())
 
-        if 0 <= ar:
+        if 0.25 <= ar:
             boundingBoxes.append(
                 [xValues.min(), xValues.max(), yValues.min(), yValues.max()])
 
@@ -306,3 +306,12 @@ def get_base_components(boundingBoxes):
         component = BaseComponent(box)
         baseComponents.append(component)
     return baseComponents
+
+
+def remove_vertical_bar_components(baseComponents):
+    cleanBaseComponents = []
+    for v in baseComponents:
+        if v.get_ar() > 0.27:
+            cleanBaseComponents.append(v)
+
+    return cleanBaseComponents
