@@ -39,10 +39,7 @@ def show_images(images, titles=None):
     plt.show()
 
 
-def show_images_2(images, titles=None):
-    # This function is used to show image(s) with titles by sending an array of images and an array of associated titles.
-    # images[0] will be drawn with the title titles[0] if exists
-    # You aren't required to understand this function, use it as-is.
+def show_images_rows(images, titles=None):
     n_ims = len(images)
     if titles is None:
         titles = ['(%d)' % i for i in range(1, n_ims + 1)]
@@ -61,13 +58,24 @@ def show_images_2(images, titles=None):
     fig.tight_layout()
     plt.show()
 
-
-def showHist(image):
-    # An "interface" to matplotlib.axes.Axes.hist() method
-    plt.figure()
-    imageHist = histogram(image, nbins=256)
-
-    bar(imageHist[1].astype(np.uint8), imageHist[0], width=0.8, align='center')
+def show_images_columns(images, titles=None):
+    n_ims = len(images)
+    if titles is None:
+        titles = ['(%d)' % i for i in range(1, n_ims + 1)]
+    fig = plt.figure()
+    n = 1
+    for image, title in zip(images, titles):
+        a = fig.add_subplot(2, round(n_ims/2), n)
+        if image.ndim == 2:
+            plt.gray()
+        plt.imshow(image)
+        a.set_title(title)
+        a.xaxis.set_ticks([])
+        a.yaxis.set_ticks([])
+        n += 1
+    fig.set_size_inches(np.array(fig.get_size_inches()) * n_ims)
+    fig.tight_layout()
+    plt.show()
 
 
 # When provided with the correct format of the list of bounding_boxes, this section will set all pixels inside boxes in image_with_boxes
@@ -89,7 +97,8 @@ def get_bounding_boxes(image):
         yValues = np.round(c[:, 0]).astype(int)
         ar = (xValues.max() - xValues.min()) / (yValues.max() - yValues.min())
 
-        if 0.25 <= ar:
+        # Filter out barlines
+        if ar >= 0.2:
             boundingBoxes.append(
                 [xValues.min(), xValues.max(), yValues.min(), yValues.max()])
 
@@ -163,7 +172,7 @@ def extract_staff_lines(image):
 
 
 # Connects notes in an image with removed lines
-def connect_notes(image, staffDim):
+def close_notes(image, staffDim):
     SIZE = 5 * (staffDim[0]+1)
     SE_notes = np.ones((SIZE, 1))
     connectedNotes = binary_closing(image, SE_notes)  # Connect vertically
@@ -186,10 +195,25 @@ def remove_non_vertical_protrusions(image, staffDim):
 
 def remove_staff_lines(image, linesOnly, staffDim):
     clean = np.copy(image)
-    # Remove pixels from image that exist in linesOnly which are only connected to other lines
     linePixels = np.argwhere(linesOnly)
+
+    def is_staff_line(r, c):
+        return np.where((linePixels == (r, c)).all(axis=1))[0].size > 0
+
+    def is_connected_to_note(r, c, direction):
+        # End of run
+        if not image[r, c]:
+            return False
+
+        # Run continues into a note
+        if not is_staff_line(r, c):
+            return True
+
+        return is_connected_to_note(r + direction, c, direction)
+
     for r, c in linePixels:
-        if not image[r + 1, c] or not image[r - 1, c]:
+        # No connectivity to note
+        if not is_connected_to_note(r, c, 1) and not is_connected_to_note(r, c, -1):
             clean[r, c] = False
 
     return clean
@@ -315,3 +339,19 @@ def remove_vertical_bar_components(baseComponents):
             cleanBaseComponents.append(v)
 
     return cleanBaseComponents
+
+def sanitize_sheet(image):
+    linesOnly, staffDim = extract_staff_lines(image)
+
+    # Image - Lines
+    removedLines = remove_staff_lines(image, linesOnly, staffDim)
+    closedNotes = close_notes(removedLines, staffDim)
+
+    # Clef removal
+    firstRun = get_first_run(closedNotes)
+    closedNotes[:, firstRun] = 0
+
+    # This step automatically removes barlines
+    masked, mask = mask_image(closedNotes, removedLines)
+
+    return masked, closedNotes
