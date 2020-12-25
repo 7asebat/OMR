@@ -6,16 +6,14 @@ image = image < threshold_otsu(image)
 linesOnly, staffDim = extract_staff_lines(image)
 
 # Image - Lines
-removedLines = np.where(linesOnly, False, image)
+removedLines = remove_staff_lines(image, linesOnly, staffDim)
 connectedNotes = connect_notes(removedLines, staffDim)
+masked, mask = mask_image(connectedNotes, removedLines)
 
 show_images_2(
-    [image, linesOnly, removedLines, connectedNotes],
-    ['Original', 'Lines Only', 'Image - Lines', 'Closing(Image - Lines)']
+    [image, removedLines, connectedNotes, mask],
+    ['Original', 'Image - Lines', 'Closing(Image - Lines)', 'Segmentation']
 )
-
-dirtyMasked = mask_image(connectedNotes, image)
-masked = remove_non_vertical_protrusions(dirtyMasked, staffDim)
 
 show_images(
     [image, masked],
@@ -28,9 +26,9 @@ connectedNotes[:, firstRun] = 0
 
 # Get slices of masked
 boundingBoxes = get_bounding_boxes(connectedNotes)
-slicedBoxesofImage = slice_image(image, boundingBoxes)
-slicedBoxesOfMasked = slice_image(masked, boundingBoxes)
+slicedImage = slice_image(image, boundingBoxes)
+slicedMasked = slice_image(masked, boundingBoxes)
 
 # Segment everything
-allSegments = segment_image(slicedBoxesofImage, slicedBoxesOfMasked, boundingBoxes)
+allSegments = segment_image(slicedImage, slicedMasked)
 show_images(allSegments)
