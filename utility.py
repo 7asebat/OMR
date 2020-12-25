@@ -34,6 +34,7 @@ def show_images(images, titles=None):
         a.yaxis.set_ticks([])
         n += 1
     fig.set_size_inches(np.array(fig.get_size_inches()) * n_ims)
+    fig.tight_layout()
     plt.show()
 
 
@@ -167,22 +168,46 @@ def connect_notes(image, staffDim):
     connectedNotes = binary_closing(image, SE_notes)  # Connect vertically
     return connectedNotes
 
+
+<< << << < HEAD
 # Mask image
+
+== == == =
+>>>>>> > 6e40597a275a5cdd3c87206c13ab60df60fa403f
 
 
 def mask_image(connectedimage, image):
     mask = set_pixels(np.zeros(connectedimage.shape),
                       get_bounding_boxes(connectedimage))
-    return np.where(mask, image, False)
+    return np.where(mask, image, False), mask
 
+
+<< << << < HEAD
 # Remove non-vertical protrusions (to remove staff lines)
 # TODO: Use Hit-and-miss to remove lines instead
 
 
+== == == =
+>>>>>> > 6e40597a275a5cdd3c87206c13ab60df60fa403f
+
+
 def remove_non_vertical_protrusions(image, staffDim):
+    # Remove non-vertical protrusions (to remove staff lines)
+    # TODO: Use Hit-and-miss to remove lines instead
     SIZE = staffDim[0]+1
     SE_vertical = np.ones((SIZE, 1))
     return binary_opening(image, SE_vertical)  # Keep vertical elements
+
+
+def remove_staff_lines(image, linesOnly, staffDim):
+    clean = np.copy(image)
+    # Remove pixels from image that exist in linesOnly which are only connected to other lines
+    linePixels = np.argwhere(linesOnly)
+    for r, c in linePixels:
+        if not image[r + 1, c] or not image[r - 1, c]:
+            clean[r, c] = False
+
+    return clean
 
 
 def isolate_heads(image, staffDim):
@@ -245,17 +270,17 @@ def slice_image(image, boundingBoxes):
     return slicedBoxesOfImage
 
 
-def segment_image(slicedImage, slicedMasked, boundingBoxes):
+def segment_image(slicedImage, slicedMasked):
     allSegments = []
-    for idx, _ in enumerate(boundingBoxes):
+    for idx, sm in enumerate(slicedMasked):
         heads = extract_heads(slicedImage[idx])
         vHist = get_vertical_histogram(heads) > 0
         numHeads = get_number_of_heads(vHist)
         if numHeads > 1:
-            segments = divide_segment(slicedMasked[idx], vHist)
+            segments = divide_segment(sm, vHist)
             allSegments = allSegments + segments
         else:
-            allSegments.append(slicedMasked[idx])
+            allSegments.append(sm)
 
     return allSegments
 
@@ -273,4 +298,4 @@ def get_first_run(image):
                 run[1] = p
                 break
 
-    return np.arange(run[0], run[1])
+    return slice(run[0], run[1])
