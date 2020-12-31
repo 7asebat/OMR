@@ -7,13 +7,14 @@ from skimage.exposure import histogram
 from skimage.color import rgb2gray, rgb2hsv
 from skimage.draw import rectangle
 from skimage.measure import find_contours
-from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening
+from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk
 from skimage.io import imread, imshow, imsave
 from skimage.filters import threshold_otsu
 from skimage.color import rgb2gray
 from BaseComponent import *
 
 import sys
+from os import path, makedirs
 
 
 def show_images(images, titles=None):
@@ -39,11 +40,13 @@ def show_images(images, titles=None):
     plt.show()
 
 
-def show_images_rows(images, titles=None):
+def show_images_rows(images, titles=None, windowTitle=None):
     n_ims = len(images)
     if titles is None:
         titles = ['(%d)' % i for i in range(1, n_ims + 1)]
     fig = plt.figure()
+    if windowTitle:
+        fig.canvas.set_window_title(windowTitle)
     n = 1
     for image, title in zip(images, titles):
         a = fig.add_subplot(round(n_ims/2), 2, n)
@@ -59,11 +62,13 @@ def show_images_rows(images, titles=None):
     plt.show()
 
 
-def show_images_columns(images, titles=None):
+def show_images_columns(images, titles=None, windowTitle=None):
     n_ims = len(images)
-    if titles is None:
+    if not titles:
         titles = ['(%d)' % i for i in range(1, n_ims + 1)]
     fig = plt.figure()
+    if windowTitle:
+        fig.canvas.set_window_title(windowTitle)
     n = 1
     for image, title in zip(images, titles):
         a = fig.add_subplot(2, round(n_ims/2), n)
@@ -220,35 +225,55 @@ def remove_staff_lines(image, linesOnly, staffDim):
     return clean
 
 
-def isolate_heads(image, staffDim):
-    # Isolate heads
-    SIZE = 5*staffDim[0] + 1
-    SE_box = np.ones((SIZE, SIZE))
-    return binary_opening(image, SE_box)
+def extract_heads(image, staffDim):
+    # Extract solid heads
+    SIZE = 3 * staffDim[0]
+    SE_disk = disk(SIZE)
+    solidHeads = binary_opening(image, SE_disk)
+    solidHeads = keep_elements_in_ar_range(solidHeads, 0.9, 2)
+
+    # Remove bars
+    SIZE = 10 * staffDim[0] + 1
+    SE_bar = np.ones((SIZE, 1))
+    bars = binary_opening(image, SE_bar)
+    heads = np.where(bars, False, image)
+
+    # Join flags with solid heads
+    # Close hollow heads
+    SIZE = 10 * staffDim[0] + 1
+    SE_flag = np.ones((SIZE, 1))
+    heads = binary_closing(heads, SE_flag)
+
+    # Eliminate joined solid heads
+    heads = keep_elements_in_ar_range(heads, 0.9, 1.65)
+
+    # Remove this line to add the result of filling hollow notes
+    heads = 0
+
+    # Mask = remove_noise(closed hollow heads + solid heads)
+    mask = binary_opening(heads | solidHeads)
+
+    return mask
 
 
-def extract_heads(image):
-    SIZE = 11
-    SE_box = np.ones((SIZE, SIZE))
-    heads = image
-    heads = binary_opening(heads, SE_box)
-
+def keep_elements_in_ar_range(image, lower, upper):
     try:
-        contours = find_contours(heads, 0.8)
+        contours = find_contours(image, 0.8)
     except:
-        return heads
+        return image
 
+    filtered = np.copy(image)
     for c in contours:
         xValues = np.round(c[:, 1]).astype(int)
         yValues = np.round(c[:, 0]).astype(int)
         ar = (xValues.max() - xValues.min()) / (yValues.max() - yValues.min())
 
-        if ar > 2:
+        if ar < lower or ar > upper:
             rr, cc = rectangle(start=(yValues.min(), xValues.min()), end=(
-                yValues.max(), xValues.max()), shape=image.shape)
-            heads[rr, cc] = 0
+                yValues.max(), xValues.max()), shape=filtered.shape)
+            filtered[rr, cc] = 0
 
-    return heads
+    return filtered
 
 
 def divide_segment(image, vHist):
@@ -294,11 +319,11 @@ def slice_image(image, boundingBoxes):
     return slicedImage
 
 
-def divide_beams(baseComponents, image):
+def divide_beams(baseComponents, image, staffDim):
     allBaseComponents = []
     for idx, v in enumerate(baseComponents):
         slicedImage = image[v.y:v.y+v.height, v.x:v.x+v.width]
-        heads = extract_heads(slicedImage)
+        heads = extract_heads(slicedImage, staffDim)
         vHist = get_vertical_histogram(heads) > 0
         numHeads = get_number_of_heads(vHist)
         if numHeads > 1:
@@ -336,7 +361,7 @@ def get_base_components(boundingBoxes):
 def remove_vertical_bar_components(baseComponents):
     cleanBaseComponents = []
     for v in baseComponents:
-        if v.get_ar() > 0.27:
+        if v.ar > 0.27:
             cleanBaseComponents.append(v)
 
     return cleanBaseComponents
@@ -356,9 +381,12 @@ def sanitize_sheet(image):
     # This step automatically removes barlines
     masked, mask = mask_image(closedNotes, removedLines)
 
-    return masked, closedNotes
+    return masked, closedNotes, staffDim
 
 
 def save_segments(segments):
-    for idx, image in enumerate(segments):
-        imsave('samples/beam' + str(idx) + '.jpg', image)
+    for i, seg in enumerate(segments):
+        segment = seg.astype(np.uint8) * 255
+        if not path.exists('samples'):
+            makedirs('samples')
+        imsave(f'samples/beam{i}.jpg', segment)
