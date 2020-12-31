@@ -26,3 +26,5 @@ for cmp in baseComponents:
     allSegments.append(sanitized[cmp.get_slice()])
 
 show_images(allSegments)
+
+save_segments(allSegments)

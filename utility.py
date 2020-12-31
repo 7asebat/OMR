@@ -8,7 +8,7 @@ from skimage.color import rgb2gray, rgb2hsv
 from skimage.draw import rectangle
 from skimage.measure import find_contours
 from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening
-from skimage.io import imread, imshow
+from skimage.io import imread, imshow, imsave
 from skimage.filters import threshold_otsu
 from skimage.color import rgb2gray
 from BaseComponent import *
@@ -57,6 +57,7 @@ def show_images_rows(images, titles=None):
     fig.set_size_inches(np.array(fig.get_size_inches()) * n_ims)
     fig.tight_layout()
     plt.show()
+
 
 def show_images_columns(images, titles=None):
     n_ims = len(images)
@@ -267,7 +268,7 @@ def divide_component(c, vHist):
     xpos = []
     for i in range(1, len(vHist)):
         if(vHist[i] == True and vHist[i-1] == False):
-            xpos.append(c.x + max(0, i-1))
+            xpos.append(c.x + max(0, i-2))
     xpos.append(c.x + c.width)
     divisions = []
     for i in range(len(xpos)-1):
@@ -340,6 +341,7 @@ def remove_vertical_bar_components(baseComponents):
 
     return cleanBaseComponents
 
+
 def sanitize_sheet(image):
     linesOnly, staffDim = extract_staff_lines(image)
 
@@ -355,3 +357,8 @@ def sanitize_sheet(image):
     masked, mask = mask_image(closedNotes, removedLines)
 
     return masked, closedNotes
+
+
+def save_segments(segments):
+    for idx, image in enumerate(segments):
+        imsave('samples/beam' + str(idx) + '.jpg', image)
