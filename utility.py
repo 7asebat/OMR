@@ -232,23 +232,13 @@ def extract_heads(image, staffDim):
     solidHeads = binary_opening(image, SE_disk)
     solidHeads = keep_elements_in_ar_range(solidHeads, 0.9, 2)
 
-    # Remove bars
-    SIZE = 10 * staffDim[0] + 1
-    SE_bar = np.ones((SIZE, 1))
-    bars = binary_opening(image, SE_bar)
-    heads = np.where(bars, False, image)
-
     # Join flags with solid heads
     # Close hollow heads
-    SIZE = 10 * staffDim[0] + 1
-    SE_flag = np.ones((SIZE, 1))
-    heads = binary_closing(heads, SE_flag)
-
-    # Eliminate joined solid heads
-    heads = keep_elements_in_ar_range(heads, 0.9, 1.65)
-
-    # Remove this line to add the result of filling hollow notes
-    heads = 0
+    heads = np.where(solidHeads, False, image)
+    SE_disk = disk(SIZE+1)
+    heads = binary_closing(heads, SE_disk)
+    heads = binary_opening(heads, SE_disk)
+    heads = keep_elements_in_ar_range(heads, 0.9, 1.75)
 
     # Mask = remove_noise(closed hollow heads + solid heads)
     mask = binary_opening(heads | solidHeads)
