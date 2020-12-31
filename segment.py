@@ -27,4 +27,4 @@ for cmp in baseComponents:
 
 show_images(allSegments)
 
-save_segments(allSegments)
+save_segments(allSegments, 2)

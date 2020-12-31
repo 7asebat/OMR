@@ -359,6 +359,6 @@ def sanitize_sheet(image):
     return masked, closedNotes
 
 
-def save_segments(segments):
+def save_segments(segments, suffix):
     for idx, image in enumerate(segments):
-        imsave('samples/beam' + str(idx) + '.jpg', image)
+        imsave('samples/beam' + str(suffix) + str(idx) + '.jpg', image)
