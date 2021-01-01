@@ -88,14 +88,14 @@ def show_images_columns(images, titles=None, windowTitle=None):
 def set_pixels(image, bounding_boxes):
     image_with_boxes = np.copy(image)
     for box in bounding_boxes:
-        [Xmin, Xmax, Ymin, Ymax] = box
+        Xmin, Xmax, Ymin, Ymax = box
         rr, cc = rectangle(start=(Ymin, Xmin), end=(
             Ymax, Xmax), shape=image.shape)
         image_with_boxes[rr, cc] = 1  # set color white
     return image_with_boxes
 
 
-def get_bounding_boxes(image):
+def get_bounding_boxes(image, lower=0, upper=sys.maxsize):
     boundingBoxes = []
     contours = find_contours(image, 0.8)
     for c in contours:
@@ -104,9 +104,9 @@ def get_bounding_boxes(image):
         ar = (xValues.max() - xValues.min()) / (yValues.max() - yValues.min())
 
         # Filter out barlines
-        if ar >= 0.2:
+        if lower <= ar <= upper:
             boundingBoxes.append(
-                [xValues.min(), xValues.max(), yValues.min(), yValues.max()])
+                (xValues.min(), xValues.max(), yValues.min(), yValues.max()))
 
     return boundingBoxes
 
@@ -137,34 +137,26 @@ def get_horizontal_histogram_image(hist, shape):
     return histimage
 
 
-def get_staff_line_dimensions(image):
-    hHist = get_horizontal_histogram(image)
-    length = hHist.max()
-    lengthThreshold = 0.85 * length
-    linesOnly = np.copy(image)
-    for ir, _ in enumerate(linesOnly):
-        if hHist[ir] < lengthThreshold:
-            linesOnly[ir] = False
-
-
 def extract_staff_lines(image):
     # Staff lines using a horizontal histogram
     # > Get staff line length
     # > Threshold image based on said length
-    hHist = get_horizontal_histogram(image)
-    lengthThreshold = 0.85 * hHist.max()
     linesOnly = np.copy(image)
-    for ir, _ in enumerate(linesOnly):
-        if hHist[ir] < lengthThreshold:
-            linesOnly[ir] = False
+
+    hHist = get_horizontal_histogram(image)
+    length = hHist.max()
+    lengthThreshold = 0.85 * hHist.max()
+
+    hHist[hHist < lengthThreshold] = 0
+    for r, val in enumerate(hHist):
+        if not val:
+            linesOnly[r] = 0
 
     # > Get staff line width
-    length = hHist.max()
     run = 0
     runFreq = {}
-    lineHist = (hHist >= lengthThreshold) * length
-    for row in lineHist:
-        if row:
+    for val in hHist:
+        if val:
             run += 1
         elif run:
             if run in runFreq:
@@ -174,12 +166,31 @@ def extract_staff_lines(image):
             run = 0
     width = max(runFreq, key=runFreq.get)
 
-    return linesOnly, (width, length)
+    # > Get staff line spacing
+    # > Find the space between any two consecutive runs
+    rows = []
+    run = False
+    spacing = -1
+    for r, val in enumerate(hHist):
+        if val:
+            run = True
+
+        elif run:
+            rows.append(r)
+
+            if (len(rows) > 1):
+                spacing = rows[1] - rows[0]
+                break
+
+            run = 0
+
+    return linesOnly, (width, length, spacing)
 
 
 # Connects notes in an image with removed lines
 def close_notes(image, staffDim):
-    SIZE = 5 * (staffDim[0]+1)
+    staffWidth = staffDim[0]
+    SIZE = 5 * (staffWidth+1)
     SE_notes = np.ones((SIZE, 1))
     connectedNotes = binary_closing(image, SE_notes)  # Connect vertically
     return connectedNotes
@@ -187,14 +198,15 @@ def close_notes(image, staffDim):
 
 def mask_image(connectedimage, image):
     mask = set_pixels(np.zeros(connectedimage.shape),
-                      get_bounding_boxes(connectedimage))
+                      get_bounding_boxes(connectedimage, 0.2))
     return np.where(mask, image, False), mask
 
 
 def remove_non_vertical_protrusions(image, staffDim):
     # Remove non-vertical protrusions (to remove staff lines)
     # TODO: Use Hit-and-miss to remove lines instead
-    SIZE = staffDim[0]+1
+    staffWidth = staffDim[0]
+    SIZE = staffWidth+1
     SE_vertical = np.ones((SIZE, 1))
     return binary_opening(image, SE_vertical)  # Keep vertical elements
 
@@ -203,16 +215,13 @@ def remove_staff_lines(image, linesOnly, staffDim):
     clean = np.copy(image)
     linePixels = np.argwhere(linesOnly)
 
-    def is_staff_line(r, c):
-        return np.where((linePixels == (r, c)).all(axis=1))[0].size > 0
-
     def is_connected_to_note(r, c, direction):
         # End of run
         if not image[r, c]:
             return False
 
         # Run continues into a note
-        if not is_staff_line(r, c):
+        if not linesOnly[r, c]:
             return True
 
         return is_connected_to_note(r + direction, c, direction)
@@ -227,7 +236,8 @@ def remove_staff_lines(image, linesOnly, staffDim):
 
 def extract_heads(image, staffDim):
     # Extract solid heads
-    SIZE = 3 * staffDim[0]
+    staffWidth = staffDim[0]
+    SIZE = 3 * staffWidth
     SE_disk = disk(SIZE)
     solidHeads = binary_opening(image, SE_disk)
     solidHeads = keep_elements_in_ar_range(solidHeads, 0.9, 2)
@@ -324,8 +334,7 @@ def divide_beams(baseComponents, image, staffDim):
     return allBaseComponents
 
 
-def get_first_run(image):
-    vHist = get_vertical_histogram(image)
+def get_first_run(vHist):
     run = [-1, -1]
     for p, v in enumerate(vHist):
         if run[0] < 0:
@@ -365,13 +374,14 @@ def sanitize_sheet(image):
     closedNotes = close_notes(removedLines, staffDim)
 
     # Clef removal
-    firstRun = get_first_run(closedNotes)
+    vHist = get_vertical_histogram(closedNotes)
+    firstRun = get_first_run(vHist)
     closedNotes[:, firstRun] = 0
 
     # This step automatically removes barlines
     masked, mask = mask_image(closedNotes, removedLines)
 
-    return masked, closedNotes, staffDim
+    return masked, closedNotes
 
 
 def save_segments(segments):
@@ -380,3 +390,55 @@ def save_segments(segments):
         if not path.exists('samples'):
             makedirs('samples')
         imsave(f'samples/beam{i}.jpg', segment)
+
+
+def analyze_notes(noteImage, lineImage, staffDim):
+    '''
+    Log how far the bounding box is from the first line
+    And whether it's over or under it
+    '''
+    below = ['f2', 'e2', 'd2', 'c2', 'b', 'a', 'g', 'f', 'e', 'd', 'c']
+    above = ['f2', 'g2', 'a2', 'b2']
+
+    staffWidth, _, staffSpacing = staffDim
+    firstLine = np.argmax(lineImage) // lineImage.shape[1]
+    boundingBoxes = get_bounding_boxes(noteImage)
+    boundingBoxes.sort()
+
+    notes = []
+    for _, _, yl, yh in boundingBoxes:
+        mid = (yl + yh) // 2
+        distance = abs(mid - firstLine)
+        distance /= staffSpacing / 2
+        distance = int(round(distance))
+
+        if mid >= firstLine:
+            notes.append(below[distance])
+        
+        else:
+            notes.append(above[distance])
+
+    return notes
+
+def split_staff_groups(image):
+    lineImage, staffDim = extract_staff_lines(image)
+    staffSpacing = staffDim[2]
+
+    lineRows = np.unique(np.where(lineImage)[0])
+    splits = [0]
+
+    # Find run spacing larger than staff spacing
+    for i, row in enumerate(lineRows[:-1]):
+        spacing = lineRows[i+1] - row
+
+        # Split at the midpoint
+        if spacing > 8 * staffSpacing:
+            splits.append(row + spacing//2)
+            
+
+    splits.append(image.shape[0])
+    groups = []
+    for i, sp in enumerate(splits[:-1]):
+        groups.append(image[sp: splits[i+1]])
+
+    return groups
