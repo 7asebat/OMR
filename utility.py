@@ -517,3 +517,30 @@ def save_segments(segments):
         if not os.path.exists('samples'):
             os.makedirs('samples')
         imsave(f'samples/beam{i}.jpg', segment)
+
+# Takes an image as an input
+# Returns array of images separating staffs
+def separate_multiple_staffs(image):
+    binaryImage = image < np.mean(image)
+    horizontal_histogram = get_horizontal_projection(binaryImage)
+    threshVal = np.median(horizontal_histogram[horizontal_histogram[np.nonzero(horizontal_histogram)].argsort()[:9]])
+    
+    entered_peak = False
+    begIndex = 0
+    finishIndex = 0
+    slicing_ranges = []
+
+    for index,i in enumerate(horizontal_histogram):
+        if i > threshVal and not entered_peak:
+            entered_peak = True
+            begIndex = index
+        if i <= threshVal and entered_peak:
+            finishIndex = index
+            entered_peak = False
+            slicing_ranges.append((begIndex,finishIndex))
+            
+    slicedImgs = []
+    for pair in slicing_ranges:
+        slicedImgs.append(image[pair[0]:pair[1],:])
+        
+    return slicedImgs
