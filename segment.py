@@ -1,30 +1,43 @@
 from utility import *
 
-image = (imread(sys.argv[1], as_gray=True) * 255).astype(np.uint8)
-image = image < threshold_otsu(image)
+def demo_segmentation(inputPath):
+    image = (imread(inputPath, as_gray=True) * 255).astype(np.uint8)
+    image = image < threshold_otsu(image)
 
-sanitized, closed = sanitize_sheet(image)
+    groups = split_bars(image)
+    show_images_columns(groups, None, inputPath)
 
-show_images_columns(
-    [image, sanitized],
-    ['Original Image', 'Sanitized']
-)
+    for i, group in enumerate(groups):
+        lineImage, staffDim = extract_staff_lines(group)
+        sanitized, closed = sanitize_sheet(group)
 
-# Get base of components from boundingBoxes
-boundingBoxes = get_bounding_boxes(closed)
-baseComponents = get_base_components(boundingBoxes)
+        show_images_columns([group, sanitized],
+                            ['Original Image', 'Sanitized'],
+                            f'Group #{i}')
 
-# Cut beams into notes
-baseComponents = divide_beams(baseComponents, image)
+        # Get base of components from boundingBoxes
+        boundingBoxes = get_bounding_boxes(closed)
+        baseComponents = get_base_components(boundingBoxes)
 
-# Sort components according to xpos
-baseComponents.sort(key=BaseComponent.sort_x_key)
+        # Cut beams into notes
+        baseComponents = divide_beams(baseComponents, group, staffDim)
 
-# Show all components
-allSegments = []
-for cmp in baseComponents:
-    allSegments.append(sanitized[cmp.get_slice()])
+        # Sort components according to xpos
+        baseComponents.sort(key=BaseComponent.sort_x_key)
 
-show_images(allSegments)
+        # Showing note heads
+        noteImage = extract_heads(sanitized, staffDim)
+        print(analyze_notes(noteImage, lineImage, staffDim))
+        show_images_columns([sanitized, noteImage | lineImage],
+                            ['Sanitized Image', 'Note Heads on Staff Lines'],
+                            f'Group #{i}')
 
-save_segments(allSegments, 2)
+        # Show all components
+        segments = []
+        for cmp in baseComponents:
+            segments.append(sanitized[cmp.slice])
+        show_images(segments)
+
+if __name__ == "__main__":
+    generate_dataset(sys.argv[1], 'dataset') 
+    # demo_segmentation(sys.argv[1])
