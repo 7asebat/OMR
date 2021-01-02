@@ -1,13 +1,12 @@
 from utility import *
 
-
-def main():
-    image = (imread(sys.argv[1], as_gray=True) * 255).astype(np.uint8)
+def demo_segmentation(image):
     image = image < threshold_otsu(image)
 
-    staffGroups = split_staff_groups(image)
-    show_images_columns(staffGroups, None, sys.argv[1])
-    for i, group in enumerate(staffGroups):
+    groups = split_bars(image)
+    show_images_columns(groups, None, sys.argv[1])
+
+    for i, group in enumerate(groups):
         lineImage, staffDim = extract_staff_lines(group)
         sanitized, closed = sanitize_sheet(group)
 
@@ -39,5 +38,9 @@ def main():
         show_images(segments)
 
 
+def main():
+    image = (imread(sys.argv[1], as_gray=True) * 255).astype(np.uint8)
+    demo_segmentation(image)
+
 if __name__ == "__main__":
-    main()
+    generate_dataset(sys.argv[1], 'dataset') 

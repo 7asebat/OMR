@@ -11,10 +11,13 @@ from skimage.morphology import binary_closing, binary_dilation, binary_erosion, 
 from skimage.io import imread, imshow, imsave
 from skimage.filters import threshold_otsu
 from skimage.color import rgb2gray
+from scipy.signal import find_peaks
 from BaseComponent import *
 
 import sys
-from os import path, makedirs
+import os
+import json
+from glob import glob
 
 
 def show_images(images, titles=None):
@@ -111,11 +114,11 @@ def get_bounding_boxes(image, lower=0, upper=sys.maxsize):
     return boundingBoxes
 
 
-def get_vertical_histogram(image):
+def get_vertical_projection(image):
     return np.array([image[:, col].sum() for col in range(image.shape[1])])
 
 
-def get_vertical_histogram_image(hist, shape):
+def get_vertical_projection_image(hist, shape):
     histimage = np.zeros(shape)
     for c, height in enumerate(hist):
         if height:
@@ -124,11 +127,11 @@ def get_vertical_histogram_image(hist, shape):
     return histimage
 
 
-def get_horizontal_histogram(image):
+def get_horizontal_projection(image):
     return np.array([image[row].sum() for row in range(image.shape[0])])
 
 
-def get_horizontal_histogram_image(hist, shape):
+def get_horizontal_projection_image(hist, shape):
     histimage = np.zeros(shape)
     for r, width in enumerate(hist):
         if width:
@@ -138,12 +141,15 @@ def get_horizontal_histogram_image(hist, shape):
 
 
 def extract_staff_lines(image):
+    '''
+    @return (LineImage, (width, length, spacing))
+    '''
     # Staff lines using a horizontal histogram
     # > Get staff line length
     # > Threshold image based on said length
     linesOnly = np.copy(image)
 
-    hHist = get_horizontal_histogram(image)
+    hHist = get_horizontal_projection(image)
     length = hHist.max()
     lengthThreshold = 0.85 * hHist.max()
 
@@ -187,8 +193,10 @@ def extract_staff_lines(image):
     return linesOnly, (width, length, spacing)
 
 
-# Connects notes in an image with removed lines
 def close_notes(image, staffDim):
+    '''
+    Connects notes in an image with removed lines
+    '''
     staffWidth = staffDim[0]
     SIZE = 5 * (staffWidth+1)
     SE_notes = np.ones((SIZE, 1))
@@ -200,15 +208,6 @@ def mask_image(connectedimage, image):
     mask = set_pixels(np.zeros(connectedimage.shape),
                       get_bounding_boxes(connectedimage, 0.2))
     return np.where(mask, image, False), mask
-
-
-def remove_non_vertical_protrusions(image, staffDim):
-    # Remove non-vertical protrusions (to remove staff lines)
-    # TODO: Use Hit-and-miss to remove lines instead
-    staffWidth = staffDim[0]
-    SIZE = staffWidth+1
-    SE_vertical = np.ones((SIZE, 1))
-    return binary_opening(image, SE_vertical)  # Keep vertical elements
 
 
 def remove_staff_lines(image, linesOnly, staffDim):
@@ -276,27 +275,18 @@ def keep_elements_in_ar_range(image, lower, upper):
     return filtered
 
 
-def divide_segment(image, vHist):
-    xpos = []
-    for i in range(1, len(vHist)):
-        if(vHist[i] == True and vHist[i-1] == False):
-            xpos.append(max(0, i-1))
-    xpos.append(image.shape[1])
-    divisions = []
-    for i in range(len(xpos)-1):
-        divisions.append(image[:, xpos[i]:xpos[i+1]])
-
-    return divisions
-
-
 def divide_component(c, vHist):
     xpos = []
-    for i in range(1, len(vHist)):
-        if(vHist[i] == True and vHist[i-1] == False):
-            xpos.append(c.x + max(0, i-2))
+    for i, _ in enumerate(vHist[:-1]):
+        if not i and vHist[i]:
+            xpos.append(c.x + i)
+
+        elif not vHist[i] and vHist[i + 1]:
+            xpos.append(c.x + i)
+
     xpos.append(c.x + c.width)
     divisions = []
-    for i in range(len(xpos)-1):
+    for i, _ in enumerate(xpos[:-1]):
         newDivision = BaseComponent([xpos[i], xpos[i+1], c.y, c.y+c.height])
         divisions.append(newDivision)
 
@@ -305,9 +295,24 @@ def divide_component(c, vHist):
 
 def get_number_of_heads(vHist):
     numHeads = 0
-    for i in range(1, len(vHist)):
-        if(vHist[i] == True and vHist[i-1] == False):
+    for i, _ in enumerate(vHist[:-1]):
+        if not i and vHist[i]:
             numHeads += 1
+
+        elif not vHist[i] and vHist[i + 1]:
+            numHeads += 1
+
+    # numHeads = 0
+    # bw = False
+    # for i, _ in enumerate(vHist[:-1]):
+    #     if not bw and vHist[i] and not vHist[i+1]:
+    #         numHeads += 1
+    #         bw = False
+
+    #     elif not vHist[i] and vHist[i + 1]:
+    #         numHeads += 1
+    #         bw = True
+
     return numHeads
 
 
@@ -321,22 +326,49 @@ def slice_image(image, boundingBoxes):
 
 def divide_beams(baseComponents, image, staffDim):
     allBaseComponents = []
-    for idx, v in enumerate(baseComponents):
-        slicedImage = image[v.y:v.y+v.height, v.x:v.x+v.width]
+    for cmp in baseComponents:
+        slicedImage = image[cmp.y:cmp.y+cmp.height, cmp.x:cmp.x+cmp.width]
         heads = extract_heads(slicedImage, staffDim)
-        vHist = get_vertical_histogram(heads) > 0
+        vHist = get_vertical_projection(heads) > 0
         numHeads = get_number_of_heads(vHist)
         if numHeads > 1:
-            components = divide_component(v, vHist)
-            allBaseComponents = allBaseComponents + components
+            components = divide_component(cmp, vHist)
+            allBaseComponents.extend(components)
         else:
-            allBaseComponents.append(v)
+            allBaseComponents.append(cmp)
+
+    # Sort components according to xpos
+    allBaseComponents.sort(key=BaseComponent.sort_x_key)
     return allBaseComponents
 
 
-def get_first_run(vHist):
+def segment_image(image):
+    image = image < threshold_otsu(image)
+
+    _, staffDim = extract_staff_lines(image)
+    sanitized, closed = sanitize_sheet(image)
+
+    # Get base of components from boundingBoxes
+    boundingBoxes = get_bounding_boxes(closed, 0.2)
+    baseComponents = get_base_components(boundingBoxes)
+
+    # Cut beams into notes
+    baseComponents = divide_beams(baseComponents, image, staffDim)
+
+    # Retrieving image segments
+    segments = []
+    for cmp in baseComponents:
+        segments.append(sanitized[cmp.slice])
+
+    return np.array(segments)
+
+
+def get_first_run(hist):
+    '''
+    @return A slice representing the run
+    '''
     run = [-1, -1]
-    for p, v in enumerate(vHist):
+    for p, v in enumerate(hist):
         if run[0] < 0:
             if v:
                 run[0] = p
@@ -357,16 +389,10 @@ def get_base_components(boundingBoxes):
     return baseComponents
 
 
-def remove_vertical_bar_components(baseComponents):
-    cleanBaseComponents = []
-    for v in baseComponents:
-        if v.ar > 0.27:
-            cleanBaseComponents.append(v)
-
-    return cleanBaseComponents
-
-
 def sanitize_sheet(image):
+    '''
+    @return (Sanitized image, Image after closing)
+    '''
     linesOnly, staffDim = extract_staff_lines(image)
 
     # Image - Lines
@@ -374,22 +400,14 @@ def sanitize_sheet(image):
     closedNotes = close_notes(removedLines, staffDim)
 
     # Clef removal
-    vHist = get_vertical_histogram(closedNotes)
+    vHist = get_vertical_projection(closedNotes)
     firstRun = get_first_run(vHist)
     closedNotes[:, firstRun] = 0
 
     # This step automatically removes barlines
-    masked, mask = mask_image(closedNotes, removedLines)
+    masked, _ = mask_image(closedNotes, removedLines)
 
     return masked, closedNotes
-
-
-def save_segments(segments):
-    for i, seg in enumerate(segments):
-        segment = seg.astype(np.uint8) * 255
-        if not path.exists('samples'):
-            makedirs('samples')
-        imsave(f'samples/beam{i}.jpg', segment)
 
 
 def analyze_notes(noteImage, lineImage, staffDim):
@@ -400,7 +418,7 @@ def analyze_notes(noteImage, lineImage, staffDim):
     below = ['f2', 'e2', 'd2', 'c2', 'b', 'a', 'g', 'f', 'e', 'd', 'c']
     above = ['f2', 'g2', 'a2', 'b2']
 
-    staffWidth, _, staffSpacing = staffDim
+    staffSpacing = staffDim[2]
     firstLine = np.argmax(lineImage) // lineImage.shape[1]
     boundingBoxes = get_bounding_boxes(noteImage)
     boundingBoxes.sort()
@@ -414,13 +432,17 @@ def analyze_notes(noteImage, lineImage, staffDim):
 
         if mid >= firstLine:
             notes.append(below[distance])
-        
+
         else:
             notes.append(above[distance])
 
     return notes
 
-def split_staff_groups(image):
+
+def split_bars(image):
+    '''
+    @return A list of images, each containing one bar
+    '''
     lineImage, staffDim = extract_staff_lines(image)
     staffSpacing = staffDim[2]
 
@@ -434,7 +456,6 @@ def split_staff_groups(image):
         # Split at the midpoint
         if spacing > 8 * staffSpacing:
             splits.append(row + spacing//2)
-            
 
     splits.append(image.shape[0])
     groups = []
@@ -442,3 +463,57 @@ def split_staff_groups(image):
         groups.append(image[sp: splits[i+1]])
 
     return groups
+
+
+# Read json manifest
+# For each image
+#   Segment image
+#   For each segment
+#       Map segment to json key
+#       Create segment folder if not found
+#       Append segment image to folder
+def generate_dataset(inputDirectory, outputDirectory):
+    '''
+    inputDirectory should contain all images used for segmentation and dataset generation.
+    It should also contain a `manifest.json` file which contains each image's details.
+
+    The JSON file should be an array of objects with the format:
+        path: <Relative path of the image file to inputDirectory>,
+        segments: [
+            <Symbol name. i.e.: 1_4, 1_8 >,
+            <Symbol name. i.e.: 1_4, 1_8 >,
+            <Symbol name. i.e.: 1_4, 1_8 >,
+            <Symbol name. i.e.: 1_4, 1_8 >,
+        ]
+    '''
+    jsonPath = os.path.join(inputDirectory, 'manifest.json')
+
+    if not os.path.exists(outputDirectory):
+        os.makedirs(outputDirectory)
+
+    with open(jsonPath, 'r') as jf:
+        manifest = json.load(jf)
+
+    for image in manifest:
+        path = os.path.join(inputDirectory, image['path'])
+        data = (imread(path, as_gray=True) * 255).astype(np.uint8)
+
+        segments = segment_image(data)
+
+        for record, segment in zip(image['segments'], segments[1:]):
+            path = os.path.join(outputDirectory, record)
+            if not os.path.exists(path):
+                os.makedirs(path)
+
+            copies = len(glob(os.path.join(path, '*')))
+            fullPath = os.path.join(path, str(copies))
+
+            imsave(f'{fullPath}.png', segment.astype(np.uint8) * 255)
+
+
+def save_segments(segments):
+    for i, seg in enumerate(segments):
+        segment = seg.astype(np.uint8) * 255
+        if not os.path.exists('samples'):
+            os.makedirs('samples')
+        imsave(f'samples/beam{i}.jpg', segment)
