@@ -259,10 +259,19 @@ def extract_heads(image, staffDim):
     #staffWidth = staffDim[0]
     staffSpacing = staffDim[2]
 
-    SIZE = (staffSpacing-2)//2
+    SIZE = (staffSpacing-3)//2
     SE_disk = disk(SIZE)
-    solidHeads = binary_opening(image, SE_disk)
-    solidHeads = keep_elements_in_ar_range(solidHeads, 0.9, 2)
+
+    vHist = get_vertical_projection(image) > 0
+    numHeads = get_number_of_heads(vHist)
+
+    closedImage = image
+    if numHeads > 1:
+        closedImage = binary_closing(image, np.ones((10, 10), dtype='bool'))
+
+    solidHeads = binary_opening(closedImage, SE_disk)
+
+    filteredSolidHeads = keep_elements_in_ar_range(solidHeads, 0.9, 1.5)
     heads = 0
 
     # @note Uncomment this section to include detection of hollow note heads
@@ -278,7 +287,7 @@ def extract_heads(image, staffDim):
     # SE_disk = disk(SIZE)
 
     # Mask = remove_noise(closed hollow heads + solid heads)
-    mask = binary_opening(heads | solidHeads)
+    mask = binary_opening(heads | filteredSolidHeads)
 
     return mask
 
@@ -366,6 +375,8 @@ def divide_beams(baseComponents, image, staffDim):
         slicedImage = image[cmp.y:cmp.y+cmp.height, cmp.x:cmp.x+cmp.width]
         heads = extract_heads(slicedImage, staffDim)
         vHist = get_vertical_projection(heads) > 0
+
+        # show_images([slicedImage, heads])
 
         numHeads = get_number_of_heads(vHist)
         if numHeads > 1:
