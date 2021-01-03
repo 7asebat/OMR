@@ -26,5 +26,9 @@ def demo_segmentation(inputPath):
 
 
 if __name__ == "__main__":
-    generate_dataset(sys.argv[1], 'dataset')
-    # demo_segmentation(sys.argv[1])
+    if len(sys.argv) > 2: 
+        print('GENERATING...')
+        generate_dataset(sys.argv[2], 'dataset')
+
+    else: 
+        demo_segmentation(sys.argv[1])

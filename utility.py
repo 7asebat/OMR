@@ -223,8 +223,11 @@ def close_notes(image, staffDim):
 
 
 def mask_image(connectedimage, image):
-    mask = set_pixels(np.zeros(connectedimage.shape),
-                      get_bounding_boxes(connectedimage, 0.2))
+    '''
+    @note Extract the low ar value
+    '''
+    boundingBoxes = get_bounding_boxes(connectedimage, 0.2)
+    mask = set_pixels(np.zeros(connectedimage.shape), boundingBoxes)
     return np.where(mask, image, False), mask
 
 
@@ -297,16 +300,16 @@ def keep_elements_in_ar_range(image, lower, upper):
 
 def divide_component(c, vHist):
     xpos = []
-    endOfLastRun = c.x
+    # endOfLastRun = c.x
     for i, _ in enumerate(vHist[:-1]):
         if not i and vHist[i]:
             xpos.append(c.x + i)
 
-        if vHist[i] and not vHist[i+1]:
-            endOfLastRun = c.x + i
+        # if vHist[i] and not vHist[i+1]:
+        #     endOfLastRun = c.x + i
 
         elif not vHist[i] and vHist[i + 1]:
-            xpos.append((endOfLastRun + c.x + i) // 2)
+            xpos.append(c.x + i)
 
     xpos.append(c.x + c.width)
     divisions = []
@@ -372,8 +375,7 @@ def segment_image(image):
     sanitized, mask, closed = sanitize_sheet(image)
 
     # Get base of components from boundingBoxes
-    # ar_low, ar_high = staffDim[2] * 0.013158, staffDim[2] * 0.105
-    ar_low, ar_high = staffDim[2] * 0.0105, staffDim[2] * 0.105
+    ar_low, ar_high = staffDim[2] * 0.01, staffDim[2] * 0.105
     boundingBoxes = get_bounding_boxes(closed, ar_low, ar_high)
     baseComponents = get_base_components(boundingBoxes)
 
