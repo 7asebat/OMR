@@ -1,9 +1,10 @@
 from utility import *
 
-def demo_segmentation(inputPath):
-    image = imread(inputPath)
 
-    # image = (imread(inputPath, as_gray=True) * 255).astype(np.uint8)
+def demo_segmentation(inputPath):
+    #image = imread(inputPath)
+
+    image = (imread(inputPath, as_gray=True) * 255).astype(np.uint8)
     image = image < threshold_otsu(image)
 
     groups = split_bars(image)
@@ -17,8 +18,11 @@ def demo_segmentation(inputPath):
                             ['Original Image', 'Sanitized'],
                             f'Group #{i}')
 
+        ar_low, ar_high = staffDim[2] * 0.05,  staffDim[2] * 0.105
+
         # Get base of components from boundingBoxes
-        boundingBoxes = get_bounding_boxes(closed)
+        boundingBoxes = get_bounding_boxes(
+            closed, ar_low, ar_high)
         baseComponents = get_base_components(boundingBoxes)
 
         # Cut beams into notes
@@ -40,6 +44,7 @@ def demo_segmentation(inputPath):
             segments.append(sanitized[cmp.slice])
         show_images(segments)
 
+
 if __name__ == "__main__":
-    generate_dataset(sys.argv[1], 'dataset') 
-    # demo_segmentation(sys.argv[1])
+    #generate_dataset(sys.argv[1], 'dataset')
+    demo_segmentation(sys.argv[1])

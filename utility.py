@@ -278,12 +278,16 @@ def keep_elements_in_ar_range(image, lower, upper):
 
 def divide_component(c, vHist):
     xpos = []
+    endOfLastRun = c.x
     for i, _ in enumerate(vHist[:-1]):
         if not i and vHist[i]:
             xpos.append(c.x + i)
 
+        if vHist[i] and not vHist[i+1]:
+            endOfLastRun = c.x + i
+
         elif not vHist[i] and vHist[i + 1]:
-            xpos.append(c.x + i)
+            xpos.append((endOfLastRun + c.x + i) // 2)
 
     xpos.append(c.x + c.width)
     divisions = []
@@ -509,14 +513,15 @@ def generate_dataset(inputDirectory, outputDirectory):
             path = os.path.join(outputDirectory, record)
             if not os.path.exists(path):
                 os.makedirs(path)
-            
+
             if record not in counters:
                 counters[record] = 0
 
             # copies = len(glob(os.path.join(path, '*')))
             # fullPath = os.path.join(path, str(copies))
 
-            fullPath = os.path.join(path, f'{image["path"]}-{counters[record]}')
+            fullPath = os.path.join(
+                path, f'{image["path"]}-{counters[record]}')
             counters[record] += 1
 
             imsave(f'{fullPath}.png', segment.astype(np.uint8) * 255)
@@ -531,27 +536,30 @@ def save_segments(segments):
 
 # Takes an image as an input
 # Returns array of images separating staffs
+
+
 def separate_multiple_staffs(image):
     binaryImage = image < np.mean(image)
     horizontal_histogram = get_horizontal_projection(binaryImage)
-    threshVal = np.median(horizontal_histogram[horizontal_histogram[np.nonzero(horizontal_histogram)].argsort()[:9]])
-    
+    threshVal = np.median(horizontal_histogram[horizontal_histogram[np.nonzero(
+        horizontal_histogram)].argsort()[:9]])
+
     entered_peak = False
     begIndex = 0
     finishIndex = 0
     slicing_ranges = []
 
-    for index,i in enumerate(horizontal_histogram):
+    for index, i in enumerate(horizontal_histogram):
         if i > threshVal and not entered_peak:
             entered_peak = True
             begIndex = index
         if i <= threshVal and entered_peak:
             finishIndex = index
             entered_peak = False
-            slicing_ranges.append((begIndex,finishIndex))
-            
+            slicing_ranges.append((begIndex, finishIndex))
+
     slicedImgs = []
     for pair in slicing_ranges:
-        slicedImgs.append(image[pair[0]:pair[1],:])
-        
+        slicedImgs.append(image[pair[0]:pair[1], :])
+
     return slicedImgs
