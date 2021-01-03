@@ -12,7 +12,7 @@ def demo_segmentation(inputPath):
 
         # Showing note heads
         noteImage = extract_heads(sanitized, staffDim)
-        print(analyze_notes(noteImage, lineImage, staffDim))
+        # print(analyze_notes(noteImage, lineImage, staffDim))
 
         show_images_columns([group, sanitized],
                             ['Original Image', 'Sanitized'],
@@ -26,9 +26,9 @@ def demo_segmentation(inputPath):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 2: 
+    if len(sys.argv) > 2:
         print('GENERATING...')
         generate_dataset(sys.argv[2], 'dataset')
 
-    else: 
+    else:
         demo_segmentation(sys.argv[1])

@@ -125,7 +125,7 @@ def get_bounding_boxes(image, lower=0, upper=sys.maxsize):
                     boundingBoxes.remove(x)
                 elif is_subset(box, x):
                     insertNew = False
-            
+
             if insertNew:
                 boundingBoxes.append(box)
 
@@ -256,8 +256,10 @@ def remove_staff_lines(image, linesOnly, staffDim):
 
 def extract_heads(image, staffDim):
     # Extract solid heads
-    staffWidth = staffDim[0]
-    SIZE = 3 * staffWidth
+    #staffWidth = staffDim[0]
+    staffSpacing = staffDim[2]
+
+    SIZE = (staffSpacing-2)//2
     SE_disk = disk(SIZE)
     solidHeads = binary_opening(image, SE_disk)
     solidHeads = keep_elements_in_ar_range(solidHeads, 0.9, 2)
@@ -271,6 +273,9 @@ def extract_heads(image, staffDim):
     # heads = binary_closing(heads, SE_disk)
     # heads = binary_opening(heads, SE_disk)
     # heads = keep_elements_in_ar_range(heads, 0.9, 1.75)
+
+    # SIZE = 4 * staffWidth
+    # SE_disk = disk(SIZE)
 
     # Mask = remove_noise(closed hollow heads + solid heads)
     mask = binary_opening(heads | solidHeads)
@@ -313,8 +318,12 @@ def divide_component(c, vHist):
 
     xpos.append(c.x + c.width)
     divisions = []
+    margin = 5
     for i, _ in enumerate(xpos[:-1]):
-        newDivision = BaseComponent([xpos[i], xpos[i+1], c.y, c.y+c.height])
+        l_pos, r_pos = max(xpos[i] - margin, c.x), xpos[i+1] - margin
+        if(i == len(xpos) - 2):
+            r_pos = xpos[i+1]
+        newDivision = BaseComponent([l_pos, r_pos, c.y, c.y+c.height])
         divisions.append(newDivision)
 
     return divisions
@@ -375,11 +384,13 @@ def segment_image(image):
     sanitized, mask, closed = sanitize_sheet(image)
 
     # Get base of components from boundingBoxes
-    ar_low, ar_high = staffDim[2] * 0.01, staffDim[2] * 0.105
-    boundingBoxes = get_bounding_boxes(closed, ar_low, ar_high)
-    baseComponents = get_base_components(boundingBoxes)
+    #ar_low, ar_high = staffDim[2] * 0.01, staffDim[2] * 0.105
+    #boundingBoxes = get_bounding_boxes(closed, ar_low, ar_high)
+    boundingBoxes = get_bounding_boxes(closed, 0.2)
 
+    baseComponents = get_base_components(boundingBoxes)
     # Cut beams into notes
+
     baseComponents = divide_beams(baseComponents, sanitized, staffDim)
 
     # Retrieving image segments
@@ -387,7 +398,7 @@ def segment_image(image):
     for cmp in baseComponents:
         segments.append(sanitized[cmp.slice])
 
-    return np.array(segments), sanitized, staffDim, lineImage 
+    return np.array(segments), sanitized, staffDim, lineImage
 
 
 def get_first_run(hist):
@@ -439,7 +450,7 @@ def sanitize_sheet(image):
     # This step automatically removes barlines
     masked, mask = mask_image(closedNotes, removedLines)
 
-    return masked, mask, closedNotes 
+    return masked, mask, closedNotes
 
 
 def analyze_notes(noteImage, lineImage, staffDim):
