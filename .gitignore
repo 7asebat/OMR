@@ -148,5 +148,6 @@ dmypy.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python,vscode
 
-/samples/
-/dataset/
+samples/*
+dataset/*
+ds-input/*

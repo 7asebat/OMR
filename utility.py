@@ -100,17 +100,34 @@ def set_pixels(image, bounding_boxes):
 
 
 def get_bounding_boxes(image, lower=0, upper=sys.maxsize):
+    def is_subset(l, r):
+        subset = l[0] >= r[0]
+        subset &= l[1] <= r[1]
+        subset &= l[2] >= r[2]
+        subset &= l[3] <= r[3]
+        return subset
+
     boundingBoxes = []
     contours = find_contours(image, 0.8)
     for c in contours:
         xValues = np.round(c[:, 1]).astype(int)
         yValues = np.round(c[:, 0]).astype(int)
+        box = (xValues.min(), xValues.max(), yValues.min(), yValues.max())
         ar = (xValues.max() - xValues.min()) / (yValues.max() - yValues.min())
 
         # Filter out barlines
+        # Keep larger bounding box
+        # Filter overlapping bounding boxes
+        insertNew = True
         if lower <= ar <= upper:
-            boundingBoxes.append(
-                (xValues.min(), xValues.max(), yValues.min(), yValues.max()))
+            for x in boundingBoxes:
+                if is_subset(x, box):
+                    boundingBoxes.remove(x)
+                elif is_subset(box, x):
+                    insertNew = False
+            
+            if insertNew:
+                boundingBoxes.append(box)
 
     return boundingBoxes
 
@@ -241,14 +258,16 @@ def extract_heads(image, staffDim):
     SE_disk = disk(SIZE)
     solidHeads = binary_opening(image, SE_disk)
     solidHeads = keep_elements_in_ar_range(solidHeads, 0.9, 2)
+    heads = 0
 
+    # @note Uncomment this section to include detection of hollow note heads
     # Join flags with solid heads
     # Close hollow heads
-    heads = np.where(solidHeads, False, image)
-    SE_disk = disk(SIZE+1)
-    heads = binary_closing(heads, SE_disk)
-    heads = binary_opening(heads, SE_disk)
-    heads = keep_elements_in_ar_range(heads, 0.9, 1.75)
+    # heads = np.where(solidHeads, False, image)
+    # SE_disk = disk(SIZE+1)
+    # heads = binary_closing(heads, SE_disk)
+    # heads = binary_opening(heads, SE_disk)
+    # heads = keep_elements_in_ar_range(heads, 0.9, 1.75)
 
     # Mask = remove_noise(closed hollow heads + solid heads)
     mask = binary_opening(heads | solidHeads)
@@ -335,6 +354,7 @@ def divide_beams(baseComponents, image, staffDim):
         slicedImage = image[cmp.y:cmp.y+cmp.height, cmp.x:cmp.x+cmp.width]
         heads = extract_heads(slicedImage, staffDim)
         vHist = get_vertical_projection(heads) > 0
+
         numHeads = get_number_of_heads(vHist)
         if numHeads > 1:
             components = divide_component(cmp, vHist)
@@ -348,24 +368,24 @@ def divide_beams(baseComponents, image, staffDim):
 
 
 def segment_image(image):
-    image = image < threshold_otsu(image)
-
-    _, staffDim = extract_staff_lines(image)
-    sanitized, closed = sanitize_sheet(image)
+    lineImage, staffDim = extract_staff_lines(image)
+    sanitized, mask, closed = sanitize_sheet(image)
 
     # Get base of components from boundingBoxes
-    boundingBoxes = get_bounding_boxes(closed, 0.2)
+    # ar_low, ar_high = staffDim[2] * 0.013158, staffDim[2] * 0.105
+    ar_low, ar_high = staffDim[2] * 0.0105, staffDim[2] * 0.105
+    boundingBoxes = get_bounding_boxes(closed, ar_low, ar_high)
     baseComponents = get_base_components(boundingBoxes)
 
     # Cut beams into notes
-    baseComponents = divide_beams(baseComponents, image, staffDim)
+    baseComponents = divide_beams(baseComponents, sanitized, staffDim)
 
     # Retrieving image segments
     segments = []
     for cmp in baseComponents:
         segments.append(sanitized[cmp.slice])
 
-    return np.array(segments)
+    return np.array(segments), sanitized, staffDim, lineImage 
 
 
 def get_first_run(hist):
@@ -387,10 +407,15 @@ def get_first_run(hist):
 
 
 def get_base_components(boundingBoxes):
+    '''
+    This function also sorts base components on their x position
+    '''
     baseComponents = []
     for box in boundingBoxes:
         component = BaseComponent(box)
         baseComponents.append(component)
+
+    baseComponents.sort(key=BaseComponent.sort_x_key)
     return baseComponents
 
 
@@ -410,9 +435,9 @@ def sanitize_sheet(image):
     closedNotes[:, firstRun] = 0
 
     # This step automatically removes barlines
-    masked, _ = mask_image(closedNotes, removedLines)
+    masked, mask = mask_image(closedNotes, removedLines)
 
-    return masked, closedNotes
+    return masked, mask, closedNotes 
 
 
 def analyze_notes(noteImage, lineImage, staffDim):
@@ -442,6 +467,14 @@ def analyze_notes(noteImage, lineImage, staffDim):
             notes.append(above[distance])
 
     return notes
+
+
+def read_and_threshold_image(path):
+    image = imread(path)
+    if len(image.shape) > 2:
+        image = (rgb2gray(image) * 255).astype(np.uint8)
+
+    return image < threshold_otsu(image)
 
 
 def split_bars(image):
@@ -504,12 +537,11 @@ def generate_dataset(inputDirectory, outputDirectory):
     counters = {}
     for image in manifest:
         path = os.path.join(inputDirectory, image['path'])
-        data = imread(path)
-        # data = (imread(path, as_gray=True) * 255).astype(np.uint8)
+        data = read_and_threshold_image(path)
 
-        segments = segment_image(data)
+        segments, _, _, _ = segment_image(data)
 
-        for record, segment in zip(image['segments'], segments[1:]):
+        for record, segment in zip(image['segments'], segments):
             path = os.path.join(outputDirectory, record)
             if not os.path.exists(path):
                 os.makedirs(path)
