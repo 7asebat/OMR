@@ -18,6 +18,7 @@ import sys
 import os
 import json
 from glob import glob
+from shutil import rmtree
 
 
 def show_images(images, titles=None):
@@ -488,15 +489,19 @@ def generate_dataset(inputDirectory, outputDirectory):
     '''
     jsonPath = os.path.join(inputDirectory, 'manifest.json')
 
-    if not os.path.exists(outputDirectory):
-        os.makedirs(outputDirectory)
+    if os.path.exists(outputDirectory):
+        rmtree(outputDirectory)
+
+    os.makedirs(outputDirectory)
 
     with open(jsonPath, 'r') as jf:
         manifest = json.load(jf)
 
+    counters = {}
     for image in manifest:
         path = os.path.join(inputDirectory, image['path'])
-        data = (imread(path, as_gray=True) * 255).astype(np.uint8)
+        data = imread(path)
+        # data = (imread(path, as_gray=True) * 255).astype(np.uint8)
 
         segments = segment_image(data)
 
@@ -504,9 +509,15 @@ def generate_dataset(inputDirectory, outputDirectory):
             path = os.path.join(outputDirectory, record)
             if not os.path.exists(path):
                 os.makedirs(path)
+            
+            if record not in counters:
+                counters[record] = 0
 
-            copies = len(glob(os.path.join(path, '*')))
-            fullPath = os.path.join(path, str(copies))
+            # copies = len(glob(os.path.join(path, '*')))
+            # fullPath = os.path.join(path, str(copies))
+
+            fullPath = os.path.join(path, f'{image["path"]}-{counters[record]}')
+            counters[record] += 1
 
             imsave(f'{fullPath}.png', segment.astype(np.uint8) * 255)
 

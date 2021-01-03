@@ -1,11 +1,13 @@
 from utility import *
 
 def demo_segmentation(inputPath):
-    image = (imread(inputPath, as_gray=True) * 255).astype(np.uint8)
+    image = imread(inputPath)
+
+    # image = (imread(inputPath, as_gray=True) * 255).astype(np.uint8)
     image = image < threshold_otsu(image)
 
     groups = split_bars(image)
-    show_images_columns(groups, None, inputPath)
+    show_images(groups)
 
     for i, group in enumerate(groups):
         lineImage, staffDim = extract_staff_lines(group)
