@@ -1,0 +1,12 @@
+name: OMR
+channels:
+  - defaults
+dependencies:
+  - python=3.8.*
+  - scikit-image
+  - scikit-learn
+  - matplotlib
+  - numpy
+  - scipy
+  - opencv
+  - nb_conda

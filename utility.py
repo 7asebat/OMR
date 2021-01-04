@@ -409,7 +409,7 @@ def segment_image(image):
     for cmp in baseComponents:
         segments.append(sanitized[cmp.slice])
 
-    return np.array(segments), sanitized, staffDim, lineImage
+    return np.array(segments, dtype=object), sanitized, staffDim, lineImage
 
 
 def get_first_run(hist):
