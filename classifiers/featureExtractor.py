@@ -43,12 +43,49 @@ def extract_hog_features(img):
     return h.flatten()
 
 
+def extract_weighted_line_peaks_features(img, expected=None):
+    img = cv2.resize(img, target_img_size)
+    ret, thresh = cv2.threshold(img, 127, 1, cv2.THRESH_BINARY)
+    ks = 9
+    kernel = np.zeros((ks, ks), dtype="uint8")
+    kernel[ks//2: ks//2+1, :] = 1
+    opened = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+
+    ks = 3
+    kernel = np.zeros((ks, ks), dtype="uint8")
+    kernel[0:ks-1, ks//2: ks//2 + 1] = 1
+    opened2 = cv2.morphologyEx(opened, cv2.MORPH_OPEN, kernel)
+
+    skeleton = skeletonize(opened2)
+
+    h_hist = np.sum(skeleton, 1)
+
+    h_hist = h_hist.flatten()
+
+    h_hist = np.concatenate(([min(h_hist)], h_hist, [min(h_hist)]))
+
+    peaks = find_peaks(h_hist, distance=3)
+    bigDist = 0
+    smallDist = 0
+    for i in range(len(peaks[0])):
+        for j in range(i+1, len(peaks[0])):
+            totalDist = abs(peaks[0][j] - peaks[0][i])
+            if(totalDist > 15):
+                bigDist += 1
+            else:
+                smallDist += 1
+
+    return [len(peaks[0]) - 1, smallDist, bigDist]
+
+
 def extract_features(img, feature_set='hog'):
     if(feature_set == 'hog'):
         return extract_hog_features(img)
+    elif(feature_set == 'weighted_line_peaks'):
+        return extract_weighted_line_peaks_features(img)
 
 
-def load_dataset(path_to_dataset,feature_set='hog'):
+def load_dataset(path_to_dataset, feature_set='hog'):
     features = []
     labels = []
     labels_filenames = os.listdir(path_to_dataset)
@@ -72,12 +109,12 @@ def load_dataset(path_to_dataset,feature_set='hog'):
     return features, labels
 
 
-def run_experiment(feature_set,fileName,path_to_dataset):
+def run_experiment(feature_set, fileName, path_to_dataset):
     model = svm.LinearSVC(random_state=random_seed, max_iter=10000, dual=True)
     model_name = "SVM"
 
     print('Loading dataset. This will take time...')
-    features, labels = load_dataset(path_to_dataset,feature_set)
+    features, labels = load_dataset(path_to_dataset, feature_set)
 
     print('Finished loading dataset..')
     train_features, test_features, train_labels, test_labels = train_test_split(
@@ -94,8 +131,6 @@ def run_experiment(feature_set,fileName,path_to_dataset):
     print('############## Saved', model_name, "##############")
 
 
-def load_predict(feature_set,fileName):
+def load_predict(feature_set, fileName):
     model = pickle.load(open(fileName, 'rb'))
     return model.predict(feature_set)
-
-
