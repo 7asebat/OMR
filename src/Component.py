@@ -2,6 +2,7 @@ class BaseComponent:
     def sort_x_key(foo): return foo.x
 
     def __init__(self, box):
+        self.box = box
         self.x = box[0]
         self.y = box[2]
 
@@ -15,10 +16,24 @@ class BaseComponent:
         self.slice = (slice(self.y, self.y + self.height), slice(self.x, self.x + self.width))
 
     def __repr__(self):
-        return f"<BaseComponent pos = {self.pos}, dim = {self.dim}>"
+        return f'<BaseComponent pos: {self.pos}, dim: {self.dim}>'
 
 
 class Accidental(BaseComponent):
     def __init__(self, box):
-        super(BaseComponent, self).__init__(box)
-        self.type = 'TBD'
+        super().__init__(box)
+        self.kind = None
+
+    def __repr__(self):
+        return f'<Accidental pos: {self.pos}, dim: {self.dim}, kind: {self.kind}>'
+
+class Note(BaseComponent):
+    def __init__(self, box):
+        super().__init__(box)
+        self.timing = None
+        self.tone = None
+        self.beamed = False
+        self.filled = False
+
+    def __repr__(self):
+        return f'<Note pos: {self.pos}, dim: {self.dim}, beamed: {self.beamed}, filled: {self.filled}, timing: {self.timing}>'

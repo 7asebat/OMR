@@ -6,18 +6,22 @@ from shutil import rmtree
 import Utility
 import Processing
 import Display
+from Component import *
 from Classifier import Classifier
-
 
 def demo_segmentation(inputPath):
     image = Utility.read_and_threshold_image(inputPath)
 
     groups = Processing.split_bars(image)
-    # Display.show_images(groups)
+    Display.show_images(groups)
 
     for i, group in enumerate(groups):
-        segments, sanitized, staffDim, lineImage = Processing.segment_image(
-            group)
+        baseComponents, sanitized, staffDim, lineImage = Processing.segment_image(group)
+
+        # Retrieving image segments
+        segments = []
+        for cmp in baseComponents:
+            segments.append(sanitized[cmp.slice])
 
         Display.show_images_columns([group, sanitized],
                                     ['Original Image', 'Sanitized'],
@@ -25,7 +29,7 @@ def demo_segmentation(inputPath):
 
         # Showing note heads
         noteImage = Processing.extract_heads(sanitized, staffDim)
-        print(analyze_notes(noteImage, lineImage, staffDim))
+        print(Processing.analyze_notes(noteImage, lineImage, staffDim))
         Display.show_images_columns([sanitized, noteImage | lineImage],
                                     ['Sanitized Image', 'Note Heads on Staff Lines'],
                                     f'Group #{i}')
@@ -34,14 +38,16 @@ def demo_segmentation(inputPath):
 
 
 def demo_classification(inputPath):
+    Classifier.load_classifiers()
+
     image = Utility.read_and_threshold_image(inputPath)
 
-    segments, _, _, _ = Processing.segment_image(image)
+    baseComponents, sanitized, _, _ = Processing.segment_image(image)
 
-    classifier = Classifier('classifiers/classifier_notes_accidentals')
+    Classifier.assign_note_accidental(sanitized, baseComponents)
 
-    for segment in segments[1:]:
-        print(classifier.extract_and_predict(segment))
+    for cmp in baseComponents[1:]: print(cmp)
+
 
 # Read json manifest
 # For each image
@@ -101,9 +107,9 @@ def generate_dataset(inputDirectory, outputDirectory):
 
 if __name__ == "__main__":
     if len(sys.argv) > 2:
-        print('GENERATING...')
-        generate_dataset(sys.argv[2], 'dataset')
+        # print('GENERATING...')
+        # generate_dataset(sys.argv[2], 'dataset')
+        demo_segmentation(sys.argv[2])
 
     else:
         demo_classification(sys.argv[1])
-        # demo_segmentation(sys.argv[1])

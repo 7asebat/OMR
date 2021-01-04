@@ -26,6 +26,7 @@ class FeatureExtractor:
 
 
     def __weighted_line_peaks(image, expected=None):
+        image = image.astype(np.uint8) * 255
         image = cv2.resize(image, target_img_size)
         ret, thresh = cv2.threshold(image, 127, 1, cv2.THRESH_BINARY)
         ks = 9
@@ -59,13 +60,13 @@ class FeatureExtractor:
 
         return [len(peaks[0]) - 1, smallDist, bigDist]
 
-    def extract(image, featureSet):
-        features = {
-            'hog': FeatureExtractor.__hog,
-            'weighted_line_peaks': FeatureExtractor.__weighted_line_peaks
-        }
+    __features = {
+        'hog': __hog,
+        'weighted_line_peaks': __weighted_line_peaks
+    }
 
-        if featureSet not in features:
+    def extract(image, featureSet):
+        if featureSet not in FeatureExtractor.__features:
             return None
 
-        return features[featureSet](image)
+        return FeatureExtractor.__features[featureSet](image)

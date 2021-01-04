@@ -1,5 +1,6 @@
-import Utility
+import sys
 import numpy as np
+import Utility
 from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk
 from scipy.signal import find_peaks
 from Component import *
@@ -190,7 +191,13 @@ def divide_beams(baseComponents, image, staffDim):
         numHeads = get_number_of_heads(vHist)
         if numHeads > 1:
             components = divide_component(cmp, vHist)
+            for i, cmp in enumerate(components):
+                components[i] = Note(cmp.box)
+                components[i].beamed = True
+                components[i].filled = True
+
             allBaseComponents.extend(components)
+
         else:
             allBaseComponents.append(cmp)
 
@@ -210,12 +217,7 @@ def segment_image(image):
     # Cut beams into notes
     baseComponents = divide_beams(baseComponents, sanitized, staffDim)
 
-    # Retrieving image segments
-    segments = []
-    for cmp in baseComponents:
-        segments.append(sanitized[cmp.slice])
-
-    return np.array(segments, dtype=object), sanitized, staffDim, lineImage
+    return baseComponents, sanitized, staffDim, lineImage
 
 
 def get_base_components(boundingBoxes):
