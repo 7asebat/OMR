@@ -134,25 +134,27 @@ def extract_heads(image, staffDim):
 
 def divide_component(c, vHist):
     xpos = []
-    # endOfLastRun = c.x
+    endOfLastRun = c.x
     for i, _ in enumerate(vHist[:-1]):
         if not i and vHist[i]:
             xpos.append(c.x + i)
 
-        # if vHist[i] and not vHist[i+1]:
-        #     endOfLastRun = c.x + i
+        if vHist[i] and not vHist[i+1]:
+            endOfLastRun = c.x + i
 
         elif not vHist[i] and vHist[i + 1]:
-            xpos.append(c.x + i)
+            # xpos.append(c.x + i)
+            xpos.append((endOfLastRun + c.x + i) // 2)
 
     xpos.append(c.x + c.width)
     divisions = []
     margin = 5
     for i, _ in enumerate(xpos[:-1]):
-        l_pos, r_pos = max(xpos[i] - margin, c.x), xpos[i+1] - margin
-        if(i == len(xpos) - 2):
-            r_pos = xpos[i+1]
-        newDivision = BaseComponent([l_pos, r_pos, c.y, c.y+c.height])
+        # l_pos, r_pos = max(xpos[i] - margin, c.x), xpos[i+1] - margin
+        # if(i == len(xpos) - 2):
+        #     r_pos = xpos[i+1]
+        # newDivision = BaseComponent([l_pos, r_pos, c.y, c.y+c.height])
+        newDivision = BaseComponent([xpos[i], xpos[i+1], c.y, c.y+c.height])
         divisions.append(newDivision)
 
     return divisions

@@ -41,12 +41,16 @@ def demo_classification(inputPath):
     Classifier.load_classifiers()
 
     image = Utility.read_and_threshold_image(inputPath)
+    groups = Processing.split_bars(image)
 
-    baseComponents, sanitized, _, _ = Processing.segment_image(image)
+    for i, group in enumerate(groups):
+        baseComponents, sanitized, _, _ = Processing.segment_image(group)
 
-    Classifier.assign_note_accidental(sanitized, baseComponents)
+        # DEBUG: skip meter
+        del baseComponents[0]
+        Classifier.assign_note_accidental(sanitized, baseComponents)
 
-    for cmp in baseComponents[1:]: print(cmp)
+        for cmp in baseComponents: print(cmp)
 
 
 # Read json manifest
