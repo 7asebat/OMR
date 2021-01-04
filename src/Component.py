@@ -16,3 +16,9 @@ class BaseComponent:
 
     def __repr__(self):
         return f"<BaseComponent pos = {self.pos}, dim = {self.dim}>"
+
+
+class Accidental(BaseComponent):
+    def __init__(self, box):
+        super(BaseComponent, self).__init__(box)
+        self.type = 'TBD'
