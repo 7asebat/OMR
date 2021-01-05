@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 from skimage.draw import rectangle
 from skimage.measure import find_contours
@@ -6,6 +7,7 @@ from skimage.io import imread, imsave
 from skimage.filters import threshold_otsu
 from skimage.color import rgb2gray, rgba2rgb
 
+from Component import BaseComponent
 
 # When provided with the correct format of the list of bounding_boxes, this section will set all pixels inside boxes in image_with_boxes
 def set_pixels(image, bounding_boxes):
@@ -32,8 +34,11 @@ def get_bounding_boxes(image, lower=0, upper=np.inf):
         xValues = np.round(c[:, 1]).astype(int)
         yValues = np.round(c[:, 0]).astype(int)
         box = (xValues.min(), xValues.max(), yValues.min(), yValues.max())
-        ar = (xValues.max() - xValues.min()) / \
-            (yValues.max() - yValues.min())
+        dx = xValues.max() - xValues.min()
+        dy = yValues.max() - yValues.min()
+
+        if not dy: dy = 1
+        ar = dx / dy
 
         # Filter out barlines
         # Keep larger bounding box
@@ -145,3 +150,24 @@ def get_first_run(hist):
                 break
 
     return slice(run[0], run[1])
+
+
+def get_base_components(boundingBoxes):
+    '''
+    This function also sorts base components on their x position
+    '''
+    baseComponents = []
+    for box in boundingBoxes:
+        component = BaseComponent(box)
+        baseComponents.append(component)
+
+    baseComponents.sort(key=BaseComponent.sort_x_key)
+    return baseComponents
+
+
+def save_segments(segments):
+    for i, seg in enumerate(segments):
+        segment = seg.astype(np.uint8) * 255
+        if not os.path.exists('samples'):
+            os.makedirs('samples')
+        imsave(f'samples/beam{i}.jpg', segment)

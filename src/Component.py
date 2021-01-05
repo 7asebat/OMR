@@ -13,7 +13,8 @@ class BaseComponent:
         self.dim = (self.width, self.height)
 
         self.ar = self.width / self.height
-        self.slice = (slice(self.y, self.y + self.height), slice(self.x, self.x + self.width))
+        self.slice = (slice(self.y, self.y + self.height),
+                      slice(self.x, self.x + self.width))
 
     def __repr__(self):
         return f'<BaseComponent pos: {self.pos}, dim: {self.dim}>'
@@ -27,6 +28,7 @@ class Accidental(BaseComponent):
     def __repr__(self):
         return f'<Accidental pos: {self.pos}, dim: {self.dim}, kind: {self.kind}>'
 
+
 class Note(BaseComponent):
     def __init__(self, box):
         super().__init__(box)
@@ -37,3 +39,12 @@ class Note(BaseComponent):
 
     def __repr__(self):
         return f'<Note pos: {self.pos}, dim: {self.dim}, beamed: {self.beamed}, filled: {self.filled}, timing: {self.timing}, tone: {self.tone}>'
+
+
+class Meter(BaseComponent):
+    def __init__(self, box):
+        super().__init__(box)
+        self.meter = None
+
+    def __repr__(self):
+        return f'<Meter pos: {self.pos}, dim: {self.dim}, meter: {self.meter}>'

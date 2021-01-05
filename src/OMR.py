@@ -42,6 +42,10 @@ def demo_segmentation(inputPath):
 
 def demo_classification(inputPath):
     Classifier.load_classifiers({
+        'meter': {
+            'path': 'classifiers/classifier_meter',
+            'featureSet': 'hog'
+        },
         'note_accidental': {
             'path': 'classifiers/classifier_notes_accidentals',
             'featureSet': 'hog'
@@ -67,13 +71,16 @@ def demo_classification(inputPath):
     image = Utility.read_and_threshold_image(inputPath)
     groups = Processing.split_bars(image)
 
-    for i, group in enumerate(groups):
+    for group in groups:
         baseComponents, sanitized, staffDim, lineImage = Processing.segment_image(group)
 
         # DEBUG: skip meter
-        del baseComponents[0]
-        Classifier.assign_note_accidental(sanitized, baseComponents)
+        meter = baseComponents.pop(0)
+        meter = Meter(meter.box)
+        Classifier.assign_meter(sanitized, meter)
+        print(meter)
 
+        Classifier.assign_note_accidental(sanitized, baseComponents)
         for cmp in baseComponents:
             Processing.analyze_note_tone(cmp, sanitized, lineImage, staffDim)
             print(cmp)
