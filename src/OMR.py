@@ -9,6 +9,7 @@ import Display
 from Component import *
 from Classifier import Classifier
 
+
 def demo_segmentation(inputPath):
     image = Utility.read_and_threshold_image(inputPath)
 
@@ -16,7 +17,8 @@ def demo_segmentation(inputPath):
     Display.show_images(groups)
 
     for i, group in enumerate(groups):
-        baseComponents, sanitized, staffDim, lineImage = Processing.segment_image(group)
+        baseComponents, sanitized, staffDim, lineImage = Processing.segment_image(
+            group)
 
         # Retrieving image segments
         segments = []
@@ -38,7 +40,24 @@ def demo_segmentation(inputPath):
 
 
 def demo_classification(inputPath):
-    Classifier.load_classifiers()
+    Classifier.load_classifiers({
+        'note_accidental': {
+            'path': 'classifiers/classifier_notes_accidentals',
+            'featureSet': 'hog'
+        },
+        'accidental_kind': {
+            'path': 'classifiers/classifier_accidentals',
+            'featureSet': 'hog'
+        },
+        'note_filled': {
+            'path': 'classifiers/classifier_holes',
+            'featureSet': 'hog'
+        },
+        'beamed_note_timing': {
+            'path': 'classifiers/classifier_beams',
+            'featureSet': 'weighted_line_peaks'
+        },
+    })
 
     image = Utility.read_and_threshold_image(inputPath)
     groups = Processing.split_bars(image)
@@ -50,7 +69,8 @@ def demo_classification(inputPath):
         del baseComponents[0]
         Classifier.assign_note_accidental(sanitized, baseComponents)
 
-        for cmp in baseComponents: print(cmp)
+        for cmp in baseComponents:
+            print(cmp)
 
 
 # Read json manifest
