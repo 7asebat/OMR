@@ -78,11 +78,26 @@ def extract_weighted_line_peaks_features(img, expected=None):
     return [len(peaks[0]) - 1, smallDist, bigDist]
 
 
+def extract_projection_features(img):
+    img = cv2.resize(img, target_img_size)
+    ret, thresh = cv2.threshold(img, 127, 1, cv2.THRESH_BINARY)
+
+    h_hist = np.sum(thresh, 1)
+    v_hist = np.sum(thresh, 0)
+
+    h_hist = h_hist.flatten()
+    v_hist = v_hist.flatten()
+
+    return np.concatenate((h_hist, v_hist))
+
+
 def extract_features(img, feature_set='hog'):
     if(feature_set == 'hog'):
         return extract_hog_features(img)
     elif(feature_set == 'weighted_line_peaks'):
         return extract_weighted_line_peaks_features(img)
+    elif(feature_set == 'projection'):
+        return extract_projection_features(img)
 
 
 def load_dataset(path_to_dataset, feature_set='hog'):
