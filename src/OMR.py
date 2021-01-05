@@ -1,4 +1,5 @@
 import sys
+import os
 import json
 from glob import glob
 from shutil import rmtree
@@ -107,11 +108,11 @@ def generate_dataset(inputDirectory, outputDirectory):
     counters = {}
     for image in manifest:
         path = os.path.join(inputDirectory, image['path'])
-        data = read_and_threshold_image(path)
+        data = Utility.read_and_threshold_image(path)
 
-        segments, _, _, _ = segment_image(data)
+        components, sanitized, _, _ = Processing.segment_image(data)
 
-        for record, segment in zip(image['segments'], segments):
+        for record, component in zip(image['segments'], components):
             path = os.path.join(outputDirectory, record)
             if not os.path.exists(path):
                 os.makedirs(path)
@@ -126,14 +127,19 @@ def generate_dataset(inputDirectory, outputDirectory):
                 path, f'{image["path"]}-{counters[record]}')
             counters[record] += 1
 
-            imsave(f'{fullPath}.png', segment.astype(np.uint8) * 255)
+            segment = sanitized[component.slice]
+
+            Utility.imsave(f'{fullPath}.png',
+                           segment.astype(Utility.np.uint8) * 255)
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 2:
-        # print('GENERATING...')
-        # generate_dataset(sys.argv[2], 'dataset')
-        demo_segmentation(sys.argv[2])
+        if sys.argv[1] == 'g':
+            print('GENERATING...')
+            generate_dataset(sys.argv[2], 'dataset')
+        elif sys.argv[1] == 's':
+            demo_segmentation(sys.argv[2])
 
     else:
         demo_classification(sys.argv[1])
