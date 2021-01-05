@@ -5,6 +5,7 @@ import cv2
 
 target_img_size = (32, 32)
 
+
 class FeatureExtractor:
     def __hog(image):
         image = image.astype(np.uint8) * 255
@@ -15,7 +16,7 @@ class FeatureExtractor:
         block_size_in_cells = (2, 2)
 
         block_size = (block_size_in_cells[1] * cell_size[1],
-                    block_size_in_cells[0] * cell_size[0])
+                      block_size_in_cells[0] * cell_size[0])
         block_stride = (cell_size[1], cell_size[0])
         nbins = 9  # Number of orientation bins
         hog = cv2.HOGDescriptor(win_size, block_size,
@@ -23,7 +24,6 @@ class FeatureExtractor:
         h = hog.compute(image)
         h = h.flatten()
         return h.flatten()
-
 
     def __weighted_line_peaks(image, expected=None):
         image = image.astype(np.uint8) * 255
@@ -60,9 +60,23 @@ class FeatureExtractor:
 
         return [len(peaks[0]) - 1, smallDist, bigDist]
 
+    def __projection(image):
+        image = image.astype(np.uint8) * 255
+        image = cv2.resize(image, target_img_size)
+        ret, thresh = cv2.threshold(image, 127, 1, cv2.THRESH_BINARY)
+
+        h_hist = np.sum(thresh, 1)
+        v_hist = np.sum(thresh, 0)
+
+        h_hist = h_hist.flatten()
+        v_hist = v_hist.flatten()
+
+        return np.concatenate((h_hist, v_hist))
+
     __features = {
         'hog': __hog,
-        'weighted_line_peaks': __weighted_line_peaks
+        'weighted_line_peaks': __weighted_line_peaks,
+        'projection': __projection
     }
 
     def extract(image, featureSet):

@@ -5,7 +5,7 @@ from skimage.draw import rectangle
 from skimage.measure import find_contours
 from skimage.io import imread
 from skimage.filters import threshold_otsu
-from skimage.color import rgb2gray
+from skimage.color import rgb2gray, rgba2rgb
 
 
 
@@ -113,7 +113,9 @@ def keep_elements_in_ar_range(image, lower, upper):
 
 def read_and_threshold_image(path):
     image = imread(path)
-    if len(image.shape) > 2:
+
+    if len(image.shape) == 3:
+        if image.shape[2] > 3: image = rgba2rgb(image)
         image = (rgb2gray(image) * 255).astype(np.uint8)
 
     return image < threshold_otsu(image)
