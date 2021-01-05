@@ -47,7 +47,9 @@ class Classifier:
         note.filled = clf.extract_and_predict(slc)[0] == 'filled'
 
         if note.filled:
-            Classifier.assign_flagged_note_timing(image, note)
+            try:
+                Classifier.assign_flagged_note_timing(image, note)
+            except NotImplementedError as err: print(err)
 
         else:  # Hollow
             Classifier.assign_hollow_note_timing(image, note)

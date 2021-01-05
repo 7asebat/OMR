@@ -1,9 +1,9 @@
 import sys
 import numpy as np
-import Utility
 from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk
 from scipy.signal import find_peaks
-from Component import *
+import Utility
+from Component import BaseComponent, Note
 
 from Display import show_images
 
@@ -151,7 +151,7 @@ def divide_component(c, vHist):
 
     xpos.append(c.x + c.width)
     divisions = []
-    margin = 5
+    # margin = 5
     for i, _ in enumerate(xpos[:-1]):
         # l_pos, r_pos = max(xpos[i] - margin, c.x), xpos[i+1] - margin
         # if(i == len(xpos) - 2):
@@ -213,11 +213,11 @@ def divide_beams(baseComponents, image, staffDim):
 
 def segment_image(image):
     lineImage, staffDim = extract_staff_lines(image)
-    sanitized, mask, closed = sanitize_sheet(image)
+    sanitized, _, closed = sanitize_sheet(image)
 
     # Get base of components from boundingBoxes
     boundingBoxes = Utility.get_bounding_boxes(closed, 0.2)
-    baseComponents = get_base_components(boundingBoxes)
+    baseComponents = Utility.get_base_components(boundingBoxes)
 
     # Cut beams into notes
     baseComponents = divide_beams(baseComponents, sanitized, staffDim)
@@ -225,22 +225,9 @@ def segment_image(image):
     return baseComponents, sanitized, staffDim, lineImage
 
 
-def get_base_components(boundingBoxes):
-    '''
-    This function also sorts base components on their x position
-    '''
-    baseComponents = []
-    for box in boundingBoxes:
-        component = BaseComponent(box)
-        baseComponents.append(component)
-
-    baseComponents.sort(key=BaseComponent.sort_x_key)
-    return baseComponents
-
-
 def sanitize_sheet(image):
     '''
-    @return (Sanitized image, Image after closing)
+    @return (Sanitized image, Sanitization mask, Image after closing)
     '''
     linesOnly, staffDim = extract_staff_lines(image)
 
@@ -257,6 +244,7 @@ def sanitize_sheet(image):
     masked, mask = Utility.mask_image(closedNotes, removedLines)
 
     return masked, mask, closedNotes
+
 
 def analyze_note_tone(note, image, lineImage, staffDim):
     '''
@@ -282,14 +270,28 @@ def analyze_note_tone(note, image, lineImage, staffDim):
         head = binary_opening(head, SE_disk)
 
     head = extract_heads(head, staffDim)
-    show_images([image[note.slice], head])
     boxes = Utility.get_bounding_boxes(head)
-    if not boxes: return
+    if not boxes:
+        return
 
-    _, _, yl, yh = boxes[0]
+    # Get the largest box:
+    def largest_box(boxes):
+        largest = ()
+        largestsz = -1
+        for box in boxes:
+            xl, xh, yl, yh = box
+            dx = xh - xl
+            dy = yh - yl
+            if dy * dx > largestsz:
+                largestsz = dy * dx
+                largest = box
+
+        return largest
+
+    _, _, yl, yh = largest_box(boxes)
     yl += note.y
     yh += note.y
-    
+
     firstLine = np.argmax(lineImage) // lineImage.shape[1]
 
     mid = (yl + yh) // 2
@@ -298,6 +300,7 @@ def analyze_note_tone(note, image, lineImage, staffDim):
     distance = int(round(distance))
 
     note.tone = below[distance] if mid >= firstLine else above[distance]
+
 
 def analyze_notes(noteImage, lineImage, staffDim):
     '''
@@ -352,14 +355,6 @@ def split_bars(image):
         groups.append(image[sp: splits[i+1]])
 
     return groups
-
-
-def save_segments(segments):
-    for i, seg in enumerate(segments):
-        segment = seg.astype(np.uint8) * 255
-        if not os.path.exists('samples'):
-            os.makedirs('samples')
-        imsave(f'samples/beam{i}.jpg', segment)
 
 
 def separate_multiple_staffs(image):
