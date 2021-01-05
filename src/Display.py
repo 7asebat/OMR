@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def show_images(images, titles=None):
+def show_images(images, titles=None, windowTitle=None):
     # This function is used to show image(s) with titles by sending an array of images and an array of associated titles.
     # images[0] will be drawn with the title titles[0] if exists
     # You aren't required to understand this function, use it as-is.
@@ -9,6 +9,8 @@ def show_images(images, titles=None):
     if titles is None:
         titles = ['(%d)' % i for i in range(1, n_ims + 1)]
     fig = plt.figure()
+    if windowTitle:
+        fig.canvas.set_window_title(windowTitle)
     n = 1
     for image, title in zip(images, titles):
         a = fig.add_subplot(1, n_ims, n)
