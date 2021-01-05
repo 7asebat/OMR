@@ -69,13 +69,13 @@ def demo_classification(inputPath):
     for group in groups:
         baseComponents, sanitized, staffDim, lineImage = Processing.segment_image(group)
 
-        # Display.show_images([sanitized[x.slice] for x in baseComponents])
         Classifier.assign_components(sanitized, baseComponents)
+        Processing.join_meters(baseComponents)
+
         for cmp in baseComponents:
             Processing.analyze_note_tone(cmp, sanitized, lineImage, staffDim)
             print(cmp)
         
-
 
 # Read json manifest
 # For each image

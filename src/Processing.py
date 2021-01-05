@@ -3,7 +3,7 @@ import numpy as np
 from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk
 from scipy.signal import find_peaks
 import Utility
-from Component import BaseComponent, Note
+from Component import BaseComponent, Note, Meter
 
 from Display import show_images
 
@@ -386,3 +386,21 @@ def separate_multiple_staffs(image):
         slicedImgs.append(image[pair[0]:pair[1], :])
 
     return slicedImgs
+
+def join_meters(baseComponents):
+    meterList = [cmp for cmp in baseComponents if type(cmp) is Meter]
+    if not meterList: return
+    
+    xl = min([m.x for m in meterList])
+    xh = max([m.x+m.width for m in meterList])
+
+    yl = min([m.y for m in meterList])
+    yh = max([m.y+m.height for m in meterList])
+        
+    joinedMeter = Meter((xl, xh, yl, yh))
+    joinedMeter.time = meterList[0].time
+
+    baseComponents.insert(0, joinedMeter)
+    for m in meterList:
+        baseComponents.remove(m)
+
