@@ -1,9 +1,11 @@
 import sys
 import numpy as np
-from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk
+from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk, selem
 from scipy.signal import find_peaks
+from scipy.ndimage.interpolation import rotate
 import Utility
 from Component import BaseComponent, Note, Meter
+from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_ELLIPSE, morphologyEx, MORPH_OPEN
 
 from Display import show_images
 
@@ -96,27 +98,31 @@ def remove_staff_lines(image, linesOnly, staffDim):
 
 
 def extract_heads(image, staffDim):
-    # Extract solid heads
-    #staffWidth = staffDim[0]
     staffSpacing = staffDim[2]
-
-    SIZE = (staffSpacing-3)//2
-    SE_disk = disk(SIZE)
-
     vHist = Utility.get_vertical_projection(image) > 0
     numHeads = get_number_of_heads(vHist)
 
-    closedImage = image
+    closedImage = binary_closing(image)
     if numHeads > 1:
         closedImage = binary_closing(
             image, np.ones((10, 10), dtype='bool'))
 
-    solidHeads = binary_opening(closedImage, SE_disk)
+    # Extract solid heads
+    # @note skimage sucks
+    w = staffSpacing
+    h = int(staffSpacing * 6/7)
+    SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
+    SE_ellipse = rotate(SE_ellipse, angle=30)
 
-    filteredSolidHeads = Utility.keep_elements_in_ar_range(
-        solidHeads, 0.9, 1.5)
+    solidHeads = morphologyEx(closedImage.astype(np.uint8),
+                              MORPH_OPEN,
+                              SE_ellipse,
+                              borderType=BORDER_CONSTANT,
+                              borderValue=0)
+
+    filteredSolidHeads = Utility.keep_elements_in_ar_range(solidHeads, 0.9, 1.5)
+
     heads = 0
-
     # @note Uncomment this section to include detection of hollow note heads
     # Join flags with solid heads
     # Close hollow heads
@@ -260,44 +266,47 @@ def analyze_note_tone(note, image, lineImage, staffDim):
     below = ['f2', 'e2', 'd2', 'c2', 'b', 'a', 'g', 'f', 'e', 'd', 'c']
     above = ['f2', 'g2', 'a2', 'b2']
     staffSpacing = staffDim[2]
+    firstLine = np.argmax(lineImage) // lineImage.shape[1]
+
+    def extract_head(image):
+        staffSpacing = staffDim[2]
+        closedImage = image
+        closedImage = binary_closing(image).astype(np.uint8)
+
+        # Use an elliptical structuring element
+        w = staffSpacing
+        h = int(staffSpacing * 6/7)
+        SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
+        SE_ellipse = rotate(SE_ellipse, angle=30)
+
+        # @note skimage sucks
+        head = morphologyEx(closedImage, MORPH_OPEN, SE_ellipse, borderType=BORDER_CONSTANT, borderValue=0)
+        # show_images([closedImage, head])
+        return head
 
     head = np.copy(image[note.slice])
-
+    # @note False classification of filled notes results in
+    # unneccessary closing
     if not note.filled:
         SIZE = (staffSpacing-3)//2
         SE_disk = disk(SIZE)
         head = binary_closing(head, SE_disk)
         head = binary_opening(head, SE_disk)
 
-    head = extract_heads(head, staffDim)
-    boxes = Utility.get_bounding_boxes(head)
-    if not boxes:
+    head = extract_head(head)
+
+    def get_mid(head):
+        # Calculate the image's center of gravity
+        avg = np.where(head)[0]
+        return np.average(avg)
+
+    mid = note.y + get_mid(head)
+    if not mid:
         return
 
-    # Get the largest box:
-    def largest_box(boxes):
-        largest = ()
-        largestsz = -1
-        for box in boxes:
-            xl, xh, yl, yh = box
-            dx = xh - xl
-            dy = yh - yl
-            if dy * dx > largestsz:
-                largestsz = dy * dx
-                largest = box
-
-        return largest
-
-    _, _, yl, yh = largest_box(boxes)
-    yl += note.y
-    yh += note.y
-
-    firstLine = np.argmax(lineImage) // lineImage.shape[1]
-
-    mid = (yl + yh) // 2
     distance = abs(mid - firstLine)
     distance /= staffSpacing / 2
-    distance = int(round(distance))
+    distance = int(distance + 0.5)
 
     note.tone = below[distance] if mid >= firstLine else above[distance]
 
@@ -387,20 +396,21 @@ def separate_multiple_staffs(image):
 
     return slicedImgs
 
+
 def join_meters(baseComponents):
     meterList = [cmp for cmp in baseComponents if type(cmp) is Meter]
-    if not meterList: return
-    
+    if not meterList:
+        return
+
     xl = min([m.x for m in meterList])
     xh = max([m.x+m.width for m in meterList])
 
     yl = min([m.y for m in meterList])
     yh = max([m.y+m.height for m in meterList])
-        
+
     joinedMeter = Meter((xl, xh, yl, yh))
     joinedMeter.time = meterList[0].time
 
     baseComponents.insert(0, joinedMeter)
     for m in meterList:
         baseComponents.remove(m)
-

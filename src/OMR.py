@@ -24,7 +24,14 @@ def demo_segmentation(inputPath):
                                     ['Original Image', 'Sanitized'],
                                     f'Group #{i}')
 
+        # Showing note heads
+        noteImage = Processing.extract_heads(sanitized, staffDim)
+        Display.show_images_columns([sanitized, noteImage | lineImage],
+                                    ['Sanitized Image', 'Note Heads on Staff Lines'],
+                                    f'Group #{i}')
+
         Display.show_images([sanitized[cmp.slice] for cmp in components])
+
 
 
 def demo_classification(inputPath):

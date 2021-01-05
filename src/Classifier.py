@@ -60,6 +60,7 @@ class Classifier:
         note.filled = clf.extract_and_predict(slc)[0] == 'filled'
 
         if note.filled:
+            # @todo Insert chorded note classification
             Classifier.assign_flagged_note_timing(image, note)
         
         else:
