@@ -48,7 +48,12 @@ class Classifier:
             Classifier.assign_flagged_note_timing(image, note)
 
         else:  # Hollow
-            raise NotImplementedError('Hollow note timing classification has not yet been implemented.')
+            Classifier.assign_hollow_note_timing(image, note)
+
+    def assign_hollow_note_timing(image, note):
+        slc = image[note.slice]
+        clf = Classifier.__classifiers['hollow_note_timing']
+        note.timing = clf.extract_and_predict(slc)[0]
 
     def assign_flagged_note_timing(image, note):
         raise NotImplementedError('Flagged note timing classification has not yet been implemented.')

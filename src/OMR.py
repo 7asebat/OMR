@@ -53,6 +53,10 @@ def demo_classification(inputPath):
             'path': 'classifiers/classifier_holes',
             'featureSet': 'hog'
         },
+        'hollow_note_timing': {
+            'path': 'classifiers/classifier_hollow',
+            'featureSet': 'projection'
+        },
         'beamed_note_timing': {
             'path': 'classifiers/classifier_beams',
             'featureSet': 'weighted_line_peaks'

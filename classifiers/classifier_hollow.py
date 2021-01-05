@@ -6,4 +6,4 @@ from featureExtractor import *
 path_to_dataset = r'dataset_hollow'
 
 
-run_experiment('hog', 'classifier_holes', path_to_dataset)
+run_experiment('projection', 'classifier_hollow', path_to_dataset)
