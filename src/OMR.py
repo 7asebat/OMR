@@ -15,29 +15,16 @@ def demo_segmentation(inputPath):
     image = Utility.read_and_threshold_image(inputPath)
 
     groups = Processing.split_bars(image)
-    Display.show_images(groups)
+    Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
 
     for i, group in enumerate(groups):
-        baseComponents, sanitized, staffDim, lineImage = Processing.segment_image(
-            group)
-
-        # Retrieving image segments
-        segments = []
-        for cmp in baseComponents:
-            segments.append(sanitized[cmp.slice])
+        components, sanitized, staffDim, lineImage = Processing.segment_image(group)
 
         Display.show_images_columns([group, sanitized],
                                     ['Original Image', 'Sanitized'],
                                     f'Group #{i}')
 
-        # Showing note heads
-        noteImage = Processing.extract_heads(sanitized, staffDim)
-        print(Processing.analyze_notes(noteImage, lineImage, staffDim))
-        Display.show_images_columns([sanitized, noteImage | lineImage],
-                                    ['Sanitized Image', 'Note Heads on Staff Lines'],
-                                    f'Group #{i}')
-
-        Display.show_images(segments)
+        Display.show_images([sanitized[cmp.slice] for cmp in components])
 
 
 def demo_classification(inputPath):
