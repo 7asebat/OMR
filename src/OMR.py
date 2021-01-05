@@ -42,7 +42,11 @@ def demo_segmentation(inputPath):
 
 def demo_classification(inputPath):
     Classifier.load_classifiers({
-        'meter': {
+        'meter_other': {
+            'path': 'classifiers/classifier_meter_not_meter',
+            'featureSet': 'hog'
+        },
+        'meter_time': {
             'path': 'classifiers/classifier_meter',
             'featureSet': 'hog'
         },
@@ -56,6 +60,10 @@ def demo_classification(inputPath):
         },
         'note_filled': {
             'path': 'classifiers/classifier_holes',
+            'featureSet': 'hog'
+        },
+        'flagged_note_timing': {
+            'path': 'classifiers/classifier_flags',
             'featureSet': 'hog'
         },
         'hollow_note_timing': {
@@ -74,16 +82,12 @@ def demo_classification(inputPath):
     for group in groups:
         baseComponents, sanitized, staffDim, lineImage = Processing.segment_image(group)
 
-        # DEBUG: skip meter
-        meter = baseComponents.pop(0)
-        meter = Meter(meter.box)
-        Classifier.assign_meter(sanitized, meter)
-        print(meter)
-
-        Classifier.assign_note_accidental(sanitized, baseComponents)
+        # Display.show_images([sanitized[x.slice] for x in baseComponents])
+        Classifier.assign_components(sanitized, baseComponents)
         for cmp in baseComponents:
             Processing.analyze_note_tone(cmp, sanitized, lineImage, staffDim)
             print(cmp)
+        
 
 
 # Read json manifest
@@ -131,9 +135,6 @@ def generate_dataset(inputDirectory, outputDirectory):
 
             if record not in counters:
                 counters[record] = 0
-
-            # copies = len(glob(os.path.join(path, '*')))
-            # fullPath = os.path.join(path, str(copies))
 
             fullPath = os.path.join(
                 path, f'{image["path"]}-{counters[record]}')

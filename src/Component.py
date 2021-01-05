@@ -17,7 +17,7 @@ class BaseComponent:
                       slice(self.x, self.x + self.width))
 
     def __repr__(self):
-        return f'<BaseComponent pos: {self.pos}, dim: {self.dim}>'
+        return f'<BaseComponent {self.pos}>'
 
 
 class Accidental(BaseComponent):
@@ -26,7 +26,7 @@ class Accidental(BaseComponent):
         self.kind = None
 
     def __repr__(self):
-        return f'<Accidental pos: {self.pos}, dim: {self.dim}, kind: {self.kind}>'
+        return f'<Accidental {self.pos} kind: {self.kind}>'
 
 
 class Note(BaseComponent):
@@ -38,13 +38,13 @@ class Note(BaseComponent):
         self.filled = False
 
     def __repr__(self):
-        return f'<Note pos: {self.pos}, dim: {self.dim}, beamed: {self.beamed}, filled: {self.filled}, timing: {self.timing}, tone: {self.tone}>'
+        return f'<Note {self.pos} beamed: {self.beamed}, filled: {self.filled}, timing: {self.timing}, tone: {self.tone}>'
 
 
 class Meter(BaseComponent):
     def __init__(self, box):
         super().__init__(box)
-        self.meter = None
+        self.time = None
 
     def __repr__(self):
-        return f'<Meter pos: {self.pos}, dim: {self.dim}, meter: {self.meter}>'
+        return f'<Meter {self.pos} time: {self.time}>'

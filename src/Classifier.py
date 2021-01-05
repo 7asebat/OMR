@@ -1,11 +1,11 @@
 import pickle
-from sklearn.model_selection import train_test_split
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.neural_network import MLPClassifier  # MLP is an NN
-from sklearn.svm import LinearSVC
+# from sklearn.model_selection import train_test_split
+# from sklearn.neighbors import KNeighborsClassifier
+# from sklearn.neural_network import MLPClassifier  # MLP is an NN
+# from sklearn.svm import LinearSVC
 
 from FeatureExtractor import FeatureExtractor
-from Component import *
+from Component import BaseComponent, Meter, Note, Accidental
 
 
 class Classifier:
@@ -13,33 +13,41 @@ class Classifier:
 
     def load_classifiers(classifiers):
         for c, cd in classifiers.items():
-            Classifier.__classifiers[c] = Classifier(
-                cd['path'], cd['featureSet'])
+            Classifier.__classifiers[c] = Classifier(cd['path'], cd['featureSet'])
 
-    def assign_meter(image, meter):
-        slc = image[meter.slice]
-        clf = Classifier.__classifiers['meter']
-        meter.meter = clf.extract_and_predict(slc)[0]
-
-    def assign_note_accidental(image, baseComponents):
+    def assign_components(image, baseComponents):
         for i, cmp in enumerate(baseComponents):
             slc = image[cmp.slice]
-            clf = Classifier.__classifiers['note_accidental']
+            clf = Classifier.__classifiers['meter_other']
             tp = clf.extract_and_predict(slc)[0]
 
-            if tp == 'Accidental':
-                baseComponents[i] = Accidental(cmp.box)
-                Classifier.assign_accidental_kind(image, baseComponents[i])
+            # Meter
+            if tp == 'meter':
+                baseComponents[i] = Meter(cmp.box)
+                Classifier.assign_meter_time(image, baseComponents[i])
 
-            elif tp == 'Note':
-                # Beamed note
-                if type(baseComponents[i]) is Note:
-                    Classifier.assign_beamed_note_timing(
-                        image, baseComponents[i])
+            # Accidental or note
+            else:
+                clf = Classifier.__classifiers['note_accidental']
+                tp = clf.extract_and_predict(slc)[0]
+
+                if tp == 'Accidental':
+                    baseComponents[i] = Accidental(cmp.box)
+                    Classifier.assign_accidental_kind(image, baseComponents[i])
 
                 else:
-                    baseComponents[i] = Note(cmp.box)
-                    Classifier.assign_note_filled(image, baseComponents[i])
+                    # Beamed note
+                    if type(baseComponents[i]) is Note:
+                        Classifier.assign_beamed_note_timing(image, baseComponents[i])
+
+                    else:
+                        baseComponents[i] = Note(cmp.box)
+                        Classifier.assign_note_filled(image, baseComponents[i])
+
+    def assign_meter_time(image, meter):
+        slc = image[meter.slice]
+        clf = Classifier.__classifiers['meter_time']
+        meter.time = clf.extract_and_predict(slc)[0]
 
     def assign_accidental_kind(image, accidental):
         slc = image[accidental.slice]
@@ -52,11 +60,9 @@ class Classifier:
         note.filled = clf.extract_and_predict(slc)[0] == 'filled'
 
         if note.filled:
-            try:
-                Classifier.assign_flagged_note_timing(image, note)
-            except NotImplementedError as err: print(err)
-
-        else:  # Hollow
+            Classifier.assign_flagged_note_timing(image, note)
+        
+        else:
             Classifier.assign_hollow_note_timing(image, note)
 
     def assign_hollow_note_timing(image, note):
@@ -65,8 +71,9 @@ class Classifier:
         note.timing = clf.extract_and_predict(slc)[0]
 
     def assign_flagged_note_timing(image, note):
-        raise NotImplementedError(
-            'Flagged note timing classification has not yet been implemented.')
+        slc = image[note.slice]
+        clf = Classifier.__classifiers['flagged_note_timing']
+        note.timing = clf.extract_and_predict(slc)[0]
 
     def assign_beamed_note_timing(image, note):
         slc = image[note.slice]
@@ -81,11 +88,10 @@ class Classifier:
 
     def extract_and_predict(self, image, featureSet=None):
         # Use the classifier's configured feature set
-        if not featureSet:
-            featureSet = self.featureSet
+        if not featureSet: featureSet = self.featureSet
 
         extractedFeatures = FeatureExtractor.extract(image, featureSet)
         return self.model.predict([extractedFeatures])
 
     def load_and_train(featureSet, datasetPath):
-        pass
+        raise NotImplementedError('Model training has not yet been integrated.')
