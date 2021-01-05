@@ -68,13 +68,14 @@ def demo_classification(inputPath):
     groups = Processing.split_bars(image)
 
     for i, group in enumerate(groups):
-        baseComponents, sanitized, _, _ = Processing.segment_image(group)
+        baseComponents, sanitized, staffDim, lineImage = Processing.segment_image(group)
 
         # DEBUG: skip meter
         del baseComponents[0]
         Classifier.assign_note_accidental(sanitized, baseComponents)
 
         for cmp in baseComponents:
+            Processing.analyze_note_tone(cmp, sanitized, lineImage, staffDim)
             print(cmp)
 
 

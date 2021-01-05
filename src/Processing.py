@@ -5,6 +5,9 @@ from skimage.morphology import binary_closing, binary_dilation, binary_erosion, 
 from scipy.signal import find_peaks
 from Component import *
 
+from Display import show_images
+
+
 def extract_staff_lines(image):
     '''
     @return (LineImage, (width, length, spacing))
@@ -255,6 +258,46 @@ def sanitize_sheet(image):
 
     return masked, mask, closedNotes
 
+def analyze_note_tone(note, image, lineImage, staffDim):
+    '''
+    Logs how far the note head's box is from the first line,
+    and whether it's over or under it.
+
+    Raises `ValueError` if the supplied component is not a note.
+    '''
+    if type(note) is not Note:
+        return
+        # raise ValueError('Supplied component is not a note')
+
+    below = ['f2', 'e2', 'd2', 'c2', 'b', 'a', 'g', 'f', 'e', 'd', 'c']
+    above = ['f2', 'g2', 'a2', 'b2']
+    staffSpacing = staffDim[2]
+
+    head = np.copy(image[note.slice])
+
+    if not note.filled:
+        SIZE = (staffSpacing-3)//2
+        SE_disk = disk(SIZE)
+        head = binary_closing(head, SE_disk)
+        head = binary_opening(head, SE_disk)
+
+    head = extract_heads(head, staffDim)
+    show_images([image[note.slice], head])
+    boxes = Utility.get_bounding_boxes(head)
+    if not boxes: return
+
+    _, _, yl, yh = boxes[0]
+    yl += note.y
+    yh += note.y
+    
+    firstLine = np.argmax(lineImage) // lineImage.shape[1]
+
+    mid = (yl + yh) // 2
+    distance = abs(mid - firstLine)
+    distance /= staffSpacing / 2
+    distance = int(round(distance))
+
+    note.tone = below[distance] if mid >= firstLine else above[distance]
 
 def analyze_notes(noteImage, lineImage, staffDim):
     '''
@@ -318,11 +361,12 @@ def save_segments(segments):
             os.makedirs('samples')
         imsave(f'samples/beam{i}.jpg', segment)
 
-# Takes an image as an input
-# Returns array of images separating staffs
-
 
 def separate_multiple_staffs(image):
+    '''
+    Takes an image as an input
+    Returns array of images separating staffs
+    '''
     binaryImage = image < np.mean(image)
     horizontal_histogram = Utility.get_horizontal_projection(binaryImage)
     threshVal = np.median(horizontal_histogram[horizontal_histogram[np.nonzero(

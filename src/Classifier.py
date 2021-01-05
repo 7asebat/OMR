@@ -13,7 +13,8 @@ class Classifier:
 
     def load_classifiers(classifiers):
         for c, cd in classifiers.items():
-            Classifier.__classifiers[c] = Classifier(cd['path'], cd['featureSet'])
+            Classifier.__classifiers[c] = Classifier(
+                cd['path'], cd['featureSet'])
 
     def assign_note_accidental(image, baseComponents):
         for i, cmp in enumerate(baseComponents):
@@ -28,7 +29,8 @@ class Classifier:
             elif tp == 'Note':
                 # Beamed note
                 if type(baseComponents[i]) is Note:
-                    Classifier.assign_beamed_note_timing(image, baseComponents[i])
+                    Classifier.assign_beamed_note_timing(
+                        image, baseComponents[i])
 
                 else:
                     baseComponents[i] = Note(cmp.box)
@@ -56,7 +58,8 @@ class Classifier:
         note.timing = clf.extract_and_predict(slc)[0]
 
     def assign_flagged_note_timing(image, note):
-        raise NotImplementedError('Flagged note timing classification has not yet been implemented.')
+        raise NotImplementedError(
+            'Flagged note timing classification has not yet been implemented.')
 
     def assign_beamed_note_timing(image, note):
         slc = image[note.slice]
@@ -73,7 +76,7 @@ class Classifier:
         # Use the classifier's configured feature set
         if not featureSet:
             featureSet = self.featureSet
-        
+
         extractedFeatures = FeatureExtractor.extract(image, featureSet)
         return self.model.predict([extractedFeatures])
 

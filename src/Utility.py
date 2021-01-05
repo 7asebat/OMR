@@ -1,5 +1,4 @@
 import numpy as np
-import sys
 
 from skimage.draw import rectangle
 from skimage.measure import find_contours
@@ -19,7 +18,7 @@ def set_pixels(image, bounding_boxes):
     return image_with_boxes
 
 
-def get_bounding_boxes(image, lower=0, upper=sys.maxsize):
+def get_bounding_boxes(image, lower=0, upper=np.inf):
     def is_subset(l, r):
         subset = l[0] >= r[0]
         subset &= l[1] <= r[1]

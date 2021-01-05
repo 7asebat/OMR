@@ -36,4 +36,4 @@ class Note(BaseComponent):
         self.filled = False
 
     def __repr__(self):
-        return f'<Note pos: {self.pos}, dim: {self.dim}, beamed: {self.beamed}, filled: {self.filled}, timing: {self.timing}>'
+        return f'<Note pos: {self.pos}, dim: {self.dim}, beamed: {self.beamed}, filled: {self.filled}, timing: {self.timing}, tone: {self.tone}>'
