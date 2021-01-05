@@ -3,10 +3,9 @@ import sys
 
 from skimage.draw import rectangle
 from skimage.measure import find_contours
-from skimage.io import imread
+from skimage.io import imread, imsave
 from skimage.filters import threshold_otsu
 from skimage.color import rgb2gray, rgba2rgb
-
 
 
 # When provided with the correct format of the list of bounding_boxes, this section will set all pixels inside boxes in image_with_boxes
@@ -115,7 +114,8 @@ def read_and_threshold_image(path):
     image = imread(path)
 
     if len(image.shape) == 3:
-        if image.shape[2] > 3: image = rgba2rgb(image)
+        if image.shape[2] > 3:
+            image = rgba2rgb(image)
         image = (rgb2gray(image) * 255).astype(np.uint8)
 
     return image < threshold_otsu(image)
