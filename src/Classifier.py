@@ -16,6 +16,11 @@ class Classifier:
             Classifier.__classifiers[c] = Classifier(
                 cd['path'], cd['featureSet'])
 
+    def assign_meter(image, meter):
+        slc = image[meter.slice]
+        clf = Classifier.__classifiers['meter']
+        meter.meter = clf.extract_and_predict(slc)[0]
+
     def assign_note_accidental(image, baseComponents):
         for i, cmp in enumerate(baseComponents):
             slc = image[cmp.slice]
