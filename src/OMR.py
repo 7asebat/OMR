@@ -66,6 +66,8 @@ def demo_classification(inputPath):
         'beamed_note_timing': {
             'path': 'classifiers/classifier_beams',
             'featureSet': 'weighted_line_peaks'
+            # 'path': 'classifiers/classifier_iterative_skeleton',
+            # 'featureSet': 'iterative_skeleton'
         },
     })
 

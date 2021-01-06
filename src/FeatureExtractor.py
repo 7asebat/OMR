@@ -121,12 +121,54 @@ class FeatureExtractor:
 
         return [ratio]
 
+    def __iterative_skeleton(image):
+        def skeletonize_and_project(image):
+            skeleton = skeletonize(image)
+            projection = np.sum(skeleton, 1).flatten()
+            projection = np.concatenate(
+                ([min(projection)], projection, [min(projection)]))
+
+            projectionImage = np.zeros(
+                (image.shape[0]+2, image.shape[1]), dtype='uint8')
+            for i, val in enumerate(projection):
+                projectionImage[i, :val] = True
+
+            return projectionImage, projection
+
+        image = cv2.resize(image.astype(np.uint8), target_img_size)
+        _, thresh = cv2.threshold(image, 127, 1, cv2.THRESH_BINARY)
+        ks = 9
+        kernel = np.zeros((ks, ks), dtype="uint8")
+        kernel[ks//2: ks//2+1, :] = 1
+        opened = cv2.morphologyEx(
+            thresh, cv2.MORPH_OPEN, kernel, borderType=cv2.BORDER_CONSTANT, borderValue=0)
+
+        ks = 3
+        kernel = np.zeros((ks, ks), dtype="uint8")
+        kernel[0:ks-1, ks//2: ks//2 + 1] = 1
+        opened2 = cv2.morphologyEx(
+            opened, cv2.MORPH_OPEN, kernel, borderType=cv2.BORDER_CONSTANT, borderValue=0)
+
+        it = opened2
+        iterations = []
+        for i in range(7):
+            it, proj = skeletonize_and_project(it)
+            iterations.append(it)
+
+        # show_images(iterations)
+        peaks = find_peaks(proj)
+
+        # Number of flags - head
+        return [len(peaks[0]) - 1]
+
     __features = {
         'hog': __hog,
         'weighted_line_peaks': __weighted_line_peaks,
         'projection': __projection,
         'weighted_line_peaks_2': __weighted_line_peaks_2,
-        'image_weight': __image_weight
+        'image_weight': __image_weight,
+        'projection': __projection,
+        'iterative_skeleton': __iterative_skeleton,
     }
 
     def extract(image, featureSet):
