@@ -73,10 +73,60 @@ class FeatureExtractor:
 
         return np.concatenate((h_hist, v_hist))
 
+    def __weighted_line_peaks_2(image, expected=None):
+        image = image.astype(np.uint8) * 255
+        image = cv2.resize(image, target_img_size)
+        ret, thresh = cv2.threshold(image, 127, 1, cv2.THRESH_BINARY)
+        ks = 9
+        kernel = np.zeros((ks, ks), dtype="uint8")
+        kernel[ks//2: ks//2+1, :] = 1
+        opened = cv2.morphologyEx(
+            thresh, cv2.MORPH_OPEN, kernel, borderType=cv2.BORDER_CONSTANT, borderValue=0)
+
+        ks = 3
+        kernel = np.zeros((ks, ks), dtype="uint8")
+        kernel[0:ks-1, ks//2: ks//2 + 1] = 1
+        opened2 = cv2.morphologyEx(
+            opened, cv2.MORPH_OPEN, kernel, borderType=cv2.BORDER_CONSTANT, borderValue=0)
+
+        skeleton = skeletonize(opened2)
+
+        h_hist = np.sum(skeleton, 1)
+
+        h_hist = h_hist.flatten()
+
+        h_hist = np.concatenate(([min(h_hist)], h_hist, [min(h_hist)]))
+
+        peaks = find_peaks(h_hist, prominence=3, distance=3)
+
+        # calculate distance
+        distances = [0] * 7
+        divisor = 32 // (len(distances) - 1)
+        for i in range(len(peaks[0])):
+            for j in range(i+1, len(peaks[0])):
+                x = abs(peaks[0][j] - peaks[0][i])
+                bucket = min(x//divisor, len(distances) - 1)
+                distances[bucket] += 1
+
+        return [len(peaks[0]) - 1] + distances
+
+    def __image_weight(image):
+        image = image.astype(np.uint8) * 255
+        image = cv2.resize(image, target_img_size)
+        ret, thresh = cv2.threshold(image, 127, 1, cv2.THRESH_BINARY)
+
+        white = np.argwhere(thresh).shape[0]
+
+        ratio = white / (32 * 32)
+
+        return [ratio]
+
     __features = {
         'hog': __hog,
         'weighted_line_peaks': __weighted_line_peaks,
-        'projection': __projection
+        'projection': __projection,
+        'weighted_line_peaks_2': __weighted_line_peaks_2,
+        'image_weight': __image_weight
     }
 
     def extract(image, featureSet):

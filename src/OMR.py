@@ -17,7 +17,8 @@ def demo_segmentation(inputPath):
     Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
 
     for i, group in enumerate(groups):
-        components, sanitized, staffDim, lineImage = Processing.segment_image(group)
+        components, sanitized, staffDim, lineImage = Processing.segment_image(
+            group)
 
         Display.show_images_columns([group, sanitized],
                                     ['Original Image', 'Sanitized'],
@@ -30,7 +31,6 @@ def demo_segmentation(inputPath):
                                     f'Group #{i}')
 
         Display.show_images([sanitized[cmp.slice] for cmp in components])
-
 
 
 def demo_classification(inputPath):
@@ -52,7 +52,7 @@ def demo_classification(inputPath):
             'featureSet': 'hog'
         },
         'note_filled': {
-            'path': 'classifiers/classifier_holes',
+            'path': 'classifiers/classifier_holes_old',
             'featureSet': 'hog'
         },
         'flagged_note_timing': {
@@ -61,7 +61,7 @@ def demo_classification(inputPath):
         },
         'hollow_note_timing': {
             'path': 'classifiers/classifier_hollow',
-            'featureSet': 'projection'
+            'featureSet': 'image_weight'
         },
         'beamed_note_timing': {
             'path': 'classifiers/classifier_beams',
@@ -74,15 +74,17 @@ def demo_classification(inputPath):
 
     print(inputPath, end=':\n\t')
     for group in groups:
-        components, sanitized, staffDim, lineImage = Processing.segment_image(group)
+        components, sanitized, staffDim, lineImage = Processing.segment_image(
+            group)
 
-        Classifier.assign_components(sanitized, components)
+        Classifier.assign_components(sanitized, components, staffDim)
         Processing.join_meters(components)
         Processing.bind_accidentals_to_following_notes(components)
 
-        Processing.assign_note_tones(components, sanitized, lineImage, staffDim)
+        Processing.assign_note_tones(
+            components, sanitized, lineImage, staffDim)
         print(Display.get_guido_notation(components), end='\n\t')
-    
+
     print('\n\n')
 
 # Read json manifest
@@ -92,6 +94,8 @@ def demo_classification(inputPath):
 #       Map segment to json key
 #       Create segment folder if not found
 #       Append segment image to folder
+
+
 def generate_dataset(inputDirectory, outputDirectory):
     '''
     inputDirectory should contain all images used for segmentation and dataset generation.

@@ -100,7 +100,7 @@ def remove_staff_lines(image, linesOnly, staffDim):
     return clean
 
 
-def extract_heads(image, staffDim):
+def extract_heads(image, staffDim, filterAR=True):
     staffSpacing = staffDim[2]
     vHist = Utility.get_vertical_projection(image) > 0
     numHeads = get_number_of_heads(vHist)
@@ -123,24 +123,11 @@ def extract_heads(image, staffDim):
                               borderType=BORDER_CONSTANT,
                               borderValue=0)
 
-    filteredSolidHeads = Utility.keep_elements_in_ar_range(
-        solidHeads, 0.9, 1.5)
+    if filterAR:
+        solidHeads = Utility.keep_elements_in_ar_range(
+            solidHeads, 0.9, 1.5)
 
-    heads = 0
-    # @note Uncomment this section to include detection of hollow note heads
-    # Join flags with solid heads
-    # Close hollow heads
-    # heads = np.where(solidHeads, False, image)
-    # SE_disk = disk(SIZE+1)
-    # heads = binary_closing(heads, SE_disk)
-    # heads = binary_opening(heads, SE_disk)
-    # heads = keep_elements_in_ar_range(heads, 0.9, 1.75)
-
-    # SIZE = 4 * staffWidth
-    # SE_disk = disk(SIZE)
-
-    # Mask = remove_noise(closed hollow heads + solid heads)
-    mask = binary_opening(heads | filteredSolidHeads)
+    mask = binary_opening(solidHeads)
 
     return mask
 
