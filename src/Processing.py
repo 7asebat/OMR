@@ -4,7 +4,7 @@ from skimage.morphology import binary_closing, binary_dilation, binary_erosion, 
 from scipy.signal import find_peaks
 from scipy.ndimage.interpolation import rotate
 import Utility
-from Component import BaseComponent, Note, Meter
+from Component import BaseComponent, Note, Meter, Accidental
 from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_ELLIPSE, morphologyEx, MORPH_OPEN
 
 from Display import show_images
@@ -308,7 +308,11 @@ def analyze_note_tone(note, image, lineImage, staffDim):
     distance /= staffSpacing / 2
     distance = int(distance + 0.5)
 
-    note.tone = below[distance] if mid >= firstLine else above[distance]
+    # @note This is a hacky fix which assumes that ONLY `c, b2` notes 
+    # are sometimes further than their standard distance
+    bi = min(distance, len(below)-1)
+    ai = min(distance, len(above)-1)
+    note.tone = below[bi] if mid >= firstLine else above[ai]
 
 
 def analyze_notes(noteImage, lineImage, staffDim):
@@ -414,3 +418,10 @@ def join_meters(baseComponents):
     baseComponents.insert(0, joinedMeter)
     for m in meterList:
         baseComponents.remove(m)
+
+def bind_accidentals_to_following_notes(components):
+    for i, cmp in enumerate(components[:-1]):
+        if type(cmp) is Accidental and type(components[i+1]) is Note:
+            components[i+1].accidental = cmp.kind if cmp.kind != 'nat' else ''
+
+    

@@ -26,6 +26,9 @@ class Accidental(BaseComponent):
         self.kind = None
 
     def __repr__(self):
+        return ''
+    
+    def get_details(self):
         return f'<Accidental {self.pos} kind: {self.kind}>'
 
 
@@ -36,10 +39,14 @@ class Note(BaseComponent):
         self.tone = None
         self.beamed = False
         self.filled = False
+        self.accidental = ''
+        self.artdots = ''
 
     def __repr__(self):
-        return f'<Note {self.pos} beamed: {self.beamed}, filled: {self.filled}, timing: {self.timing}, tone: {self.tone}>'
+        return f'{self.tone}{self.accidental}/{self.timing}{self.artdots}'
 
+    def get_details(self):
+        return f'<Note {self.pos} beamed: {self.beamed}, filled: {self.filled}, timing: {self.timing}, tone: {self.tone}>'
 
 class Meter(BaseComponent):
     def __init__(self, box):
@@ -47,4 +54,8 @@ class Meter(BaseComponent):
         self.time = None
 
     def __repr__(self):
+        signature = self.time.replace('_', '/')[1:]
+        return f'\meter<"{signature}">'
+
+    def get_details(self):
         return f'<Meter {self.pos} time: {self.time}>'

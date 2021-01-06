@@ -74,15 +74,23 @@ def demo_classification(inputPath):
     groups = Processing.split_bars(image)
 
     for group in groups:
-        baseComponents, sanitized, staffDim, lineImage = Processing.segment_image(group)
+        components, sanitized, staffDim, lineImage = Processing.segment_image(group)
 
-        Classifier.assign_components(sanitized, baseComponents)
-        Processing.join_meters(baseComponents)
+        Classifier.assign_components(sanitized, components)
+        Processing.join_meters(components)
 
-        for cmp in baseComponents:
-            Processing.analyze_note_tone(cmp, sanitized, lineImage, staffDim)
-            print(cmp)
-        
+        print(f'{inputPath}:')
+        try:
+            for cmp in components:
+                Processing.analyze_note_tone(cmp, sanitized, lineImage, staffDim)
+
+            Processing.bind_accidentals_to_following_notes(components)
+            print(f'\t{Display.get_guido_notation(components)}\n\n')
+
+
+        except Exception as ex:
+            print(f'\t{ex}\n\n')
+
 
 # Read json manifest
 # For each image

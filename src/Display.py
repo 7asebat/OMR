@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def show_images(images, titles=None, windowTitle=None):
     # This function is used to show image(s) with titles by sending an array of images and an array of associated titles.
     # images[0] will be drawn with the title titles[0] if exists
@@ -25,6 +26,7 @@ def show_images(images, titles=None, windowTitle=None):
     fig.tight_layout()
     plt.show()
 
+
 def show_images_rows(images, titles=None, windowTitle=None):
     n_ims = len(images)
     if titles is None:
@@ -45,6 +47,7 @@ def show_images_rows(images, titles=None, windowTitle=None):
     fig.set_size_inches(np.array(fig.get_size_inches()) * n_ims)
     fig.tight_layout()
     plt.show()
+
 
 def show_images_columns(images, titles=None, windowTitle=None):
     n_ims = len(images)
@@ -67,3 +70,10 @@ def show_images_columns(images, titles=None, windowTitle=None):
     fig.tight_layout()
     plt.show()
 
+
+def get_guido_notation(components):
+    guido = ''
+    for cmp in components:
+        if str(cmp): guido += f' {cmp}'
+
+    return f'[{guido} ]'
