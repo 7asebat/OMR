@@ -7,7 +7,6 @@ from shutil import rmtree
 import Utility
 import Processing
 import Display
-from Component import *
 from Classifier import Classifier
 
 
@@ -73,24 +72,18 @@ def demo_classification(inputPath):
     image = Utility.read_and_threshold_image(inputPath)
     groups = Processing.split_bars(image)
 
+    print(inputPath, end=':\n\t')
     for group in groups:
         components, sanitized, staffDim, lineImage = Processing.segment_image(group)
 
         Classifier.assign_components(sanitized, components)
         Processing.join_meters(components)
+        Processing.bind_accidentals_to_following_notes(components)
 
-        print(f'{inputPath}:')
-        try:
-            for cmp in components:
-                Processing.analyze_note_tone(cmp, sanitized, lineImage, staffDim)
-
-            Processing.bind_accidentals_to_following_notes(components)
-            print(f'\t{Display.get_guido_notation(components)}\n\n')
-
-
-        except Exception as ex:
-            print(f'\t{ex}\n\n')
-
+        Processing.assign_note_tones(components, sanitized, lineImage, staffDim)
+        print(Display.get_guido_notation(components), end='\n\t')
+    
+    print('\n\n')
 
 # Read json manifest
 # For each image

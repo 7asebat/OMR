@@ -9,6 +9,9 @@ from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_EL
 
 from Display import show_images
 
+import warnings
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+
 
 def extract_staff_lines(image):
     '''
@@ -120,7 +123,8 @@ def extract_heads(image, staffDim):
                               borderType=BORDER_CONSTANT,
                               borderValue=0)
 
-    filteredSolidHeads = Utility.keep_elements_in_ar_range(solidHeads, 0.9, 1.5)
+    filteredSolidHeads = Utility.keep_elements_in_ar_range(
+        solidHeads, 0.9, 1.5)
 
     heads = 0
     # @note Uncomment this section to include detection of hollow note heads
@@ -252,67 +256,71 @@ def sanitize_sheet(image):
     return masked, mask, closedNotes
 
 
-def analyze_note_tone(note, image, lineImage, staffDim):
+def assign_note_tones(components, image, lineImage, staffDim):
     '''
     Logs how far the note head's box is from the first line,
     and whether it's over or under it.
 
     Raises `ValueError` if the supplied component is not a note.
     '''
-    if type(note) is not Note:
-        return
-        # raise ValueError('Supplied component is not a note')
+    for note in components:
+        if type(note) is not Note:
+            continue
 
-    below = ['f2', 'e2', 'd2', 'c2', 'b', 'a', 'g', 'f', 'e', 'd', 'c']
-    above = ['f2', 'g2', 'a2', 'b2']
-    staffSpacing = staffDim[2]
-    firstLine = np.argmax(lineImage) // lineImage.shape[1]
-
-    def extract_head(image):
+        below = ['f2', 'e2', 'd2', 'c2', 'b', 'a', 'g', 'f', 'e', 'd', 'c']
+        above = ['f2', 'g2', 'a2', 'b2']
         staffSpacing = staffDim[2]
-        closedImage = image
-        closedImage = binary_closing(image).astype(np.uint8)
+        firstLine = np.argmax(lineImage) // lineImage.shape[1]
 
-        # Use an elliptical structuring element
-        w = staffSpacing
-        h = int(staffSpacing * 6/7)
-        SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
-        SE_ellipse = rotate(SE_ellipse, angle=30)
+        def extract_head(image):
+            staffSpacing = staffDim[2]
+            closedImage = image
+            closedImage = binary_closing(image).astype(np.uint8)
 
-        # @note skimage sucks
-        head = morphologyEx(closedImage, MORPH_OPEN, SE_ellipse, borderType=BORDER_CONSTANT, borderValue=0)
-        # show_images([closedImage, head])
-        return head
+            # Use an elliptical structuring element
+            w = staffSpacing
+            h = int(staffSpacing * 6/7)
+            SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
+            SE_ellipse = rotate(SE_ellipse, angle=30)
 
-    head = np.copy(image[note.slice])
-    # @note False classification of filled notes results in
-    # unneccessary closing
-    if not note.filled:
-        SIZE = (staffSpacing-3)//2
-        SE_disk = disk(SIZE)
-        head = binary_closing(head, SE_disk)
-        head = binary_opening(head, SE_disk)
+            # @note skimage sucks
+            head = morphologyEx(closedImage, MORPH_OPEN, SE_ellipse,
+                                borderType=BORDER_CONSTANT, borderValue=0)
+            # show_images([closedImage, head])
+            return head
 
-    head = extract_head(head)
+        head = np.copy(image[note.slice])
+        # @note False classification of filled notes results in
+        # unneccessary closing
+        if not note.filled:
+            SIZE = (staffSpacing-3)//2
+            SE_disk = disk(SIZE)
+            head = binary_closing(head, SE_disk)
+            head = binary_opening(head, SE_disk)
 
-    def get_mid(head):
-        # Calculate the image's center of gravity
-        avg = np.where(head)[0]
-        return np.average(avg)
+        head = extract_head(head)
 
-    mid = note.y + get_mid(head)
-    if not mid:
-        return
+        def get_mid(head):
+            # Calculate the image's center of gravity
+            avg = np.where(head)[0]
+            return np.average(avg)
 
-    distance = abs(mid - firstLine)
-    distance /= staffSpacing / 2
-    distance = int(distance + 0.5)
+        mid = get_mid(head)
 
-    # @note This is a hacky fix which assumes that ONLY `c, b2` notes 
-    # are sometimes further than their standard distance
-    bi = min(distance, len(below)-1)
-    ai = min(distance, len(above)-1)
-    note.tone = below[bi] if mid >= firstLine else above[ai]
+        try:
+            mid += note.y
+            distance = abs(mid - firstLine)
+            distance /= staffSpacing / 2
+            distance = int(distance + 0.5)
+
+            # @note This is a hacky fix which assumes that ONLY `c, b2` notes
+            # are sometimes further than their standard distance
+            bi = min(distance, len(below)-1)
+            ai = min(distance, len(above)-1)
+            note.tone = below[bi] if mid >= firstLine else above[ai]
+
+        except Exception as e:
+            print(e, end='\n\t')
 
 
 def analyze_notes(noteImage, lineImage, staffDim):
@@ -419,9 +427,8 @@ def join_meters(baseComponents):
     for m in meterList:
         baseComponents.remove(m)
 
+
 def bind_accidentals_to_following_notes(components):
     for i, cmp in enumerate(components[:-1]):
         if type(cmp) is Accidental and type(components[i+1]) is Note:
             components[i+1].accidental = cmp.kind if cmp.kind != 'nat' else ''
-
-    

@@ -1,4 +1,3 @@
-
 # Created by https://www.toptal.com/developers/gitignore/api/python,vscode
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,vscode
 
@@ -142,13 +141,15 @@ dmypy.json
 # profiling data
 .prof
 
-  ### vscode ###
+### vscode ###
 .vscode/*
 !.vscode/launch.json
 *.code-workspace
 
 # End of https://www.toptal.com/developers/gitignore/api/python,vscode
 
+## 7asebat ###
 samples/*
 dataset*/*
 ds*-input/*
+!run.log
