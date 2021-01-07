@@ -440,6 +440,7 @@ def process_chord(chord, image, lineImage, staffDim):
     show_images([stem, oneHead])
 
     final = binary_closing(stem | oneHead)
+
     return final, tones
 
 

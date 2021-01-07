@@ -14,15 +14,26 @@ from Component import Note
 
 
 def demo_chord(chord, sanitized, lineImage, staffDim):
-    chordImg, tones = Processing.process_chord(chord, sanitized, lineImage, staffDim)
+    chordImg, tones = Processing.process_chord(
+        chord, sanitized, lineImage, staffDim)
     print(tones)
+
+    # crop xdim to fit the note precisely
+    l, h = 0, 0
+    vHist = np.sum(chordImg, 0) > 0
+    for i, _ in enumerate(vHist[:-1]):
+        if(not vHist[i] and vHist[i+1] and l == 0):
+            l = i
+        if(vHist[i]):
+            h = max(i, h)
+    h = (chord.width - h)
+
     processed = np.copy(sanitized)
     processed[chord.slice] = chordImg
 
     xl, xh, yl, yh = chord.box
-    yl += chord.height // 4;
 
-    chord = Note((xl, xh, yl, yh))
+    chord = Note((xl+l, xh-h, yl, yh))
     Classifier.assign_flagged_note_timing(processed, chord)
     Display.show_images([sanitized[chord.slice], processed[chord.slice]])
     print(chord)
@@ -105,8 +116,7 @@ def demo_classification(inputPath):
             components, sanitized, lineImage, staffDim)
         print(Display.get_guido_notation(components), end='\n\t')
 
-        # demo_chord(copmonents[1], sanitized, lineImage, staffDim)
-
+        demo_chord(components[1], sanitized, lineImage, staffDim)
 
     print('\n\n')
 

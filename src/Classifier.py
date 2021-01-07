@@ -28,26 +28,29 @@ class Classifier:
             if tp == 'meter':
                 baseComponents[i] = Meter(cmp.box)
                 Classifier.assign_meter_time(image, baseComponents[i])
+                continue
 
             # Accidental or note
-            else:
-                clf = Classifier.__classifiers['note_accidental']
-                tp = clf.extract_and_predict(slc)[0]
 
-                if tp == 'Accidental':
-                    baseComponents[i] = Accidental(cmp.box)
-                    Classifier.assign_accidental_kind(image, baseComponents[i])
+            clf = Classifier.__classifiers['note_accidental']
+            tp = clf.extract_and_predict(slc)[0]
 
-                else:
-                    # Beamed note
-                    if type(baseComponents[i]) is Note:
-                        Classifier.assign_beamed_note_timing(
-                            image, baseComponents[i])
+            if tp == 'Accidental':
+                baseComponents[i] = Accidental(cmp.box)
+                Classifier.assign_accidental_kind(image, baseComponents[i])
+                continue
 
-                    else:
-                        baseComponents[i] = Note(cmp.box)
-                        Classifier.assign_note_filled(
-                            image, baseComponents[i], staffDim)
+            # Beamed note
+            if type(baseComponents[i]) is Note:
+                Classifier.assign_beamed_note_timing(
+                    image, baseComponents[i])
+                continue
+
+            # Flagged note or chord
+
+            baseComponents[i] = Note(cmp.box)
+            Classifier.assign_note_filled(
+                image, baseComponents[i], staffDim)
 
     def assign_meter_time(image, meter):
         slc = image[meter.slice]
