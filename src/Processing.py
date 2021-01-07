@@ -2,8 +2,9 @@ from skimage.morphology import binary_closing, binary_dilation, binary_erosion, 
 from scipy.signal import find_peaks
 from scipy.ndimage.interpolation import rotate
 import Utility
-from Component import BaseComponent, Note, Meter, Accidental
+from Component import BaseComponent, Note, Meter, Accidental, Chord
 from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_ELLIPSE, morphologyEx, MORPH_OPEN, MORPH_ERODE, MORPH_CLOSE
+from Classifier import Classifier
 import numpy as np
 
 from Display import show_images
@@ -250,7 +251,11 @@ def assign_note_tones(components, image, lineImage, staffDim):
     Raises `ValueError` if the supplied component is not a note.
     '''
     for note in components:
-        if type(note) is not Note:
+        if type(note) is not Note and type(note) is not Chord:
+            continue
+
+        if type(note) is Chord:
+            note = process_chord(note, image, lineImage, staffDim)
             continue
 
         staffSpacing = staffDim[2]
@@ -407,6 +412,9 @@ def process_chord(chord, image, lineImage, staffDim):
         mid += chord.y
         tones.append(get_tone(mid, firstLine, staffSpacing))
 
+    chord.tones = tones
+    chord.tones.sort()
+
     # Get stem
     stem = np.copy(img)
     for xl, xh, yl, yh in boxes:
@@ -437,15 +445,33 @@ def process_chord(chord, image, lineImage, staffDim):
     oneHead = morphologyEx(oneHead, MORPH_OPEN, SE_ellipse,
                            borderType=BORDER_CONSTANT, borderValue=0)
 
-    show_images([stem, oneHead])
-
     final = binary_closing(stem | oneHead)
 
-    return final, tones
+    # crop xdim to fit the note precisely
+    l, h = 0, 0
+    vHist = np.sum(final, 0) > 0
+    for i, _ in enumerate(vHist[:-1]):
+        if(not vHist[i] and vHist[i+1] and l == 0):
+            l = i
+        if(vHist[i]):
+            h = max(i, h)
+    h = (chord.width - h)
+
+    processed = np.copy(image)
+    processed[chord.slice] = final
+
+    xl, xh, yl, yh = chord.box
+
+    note = Note((xl+l, xh-h, yl, yh))
+    Classifier.assign_flagged_note_timing(processed, note)
+
+    chord.timing = note.timing
+
+    return chord
 
 
 def get_tone(mid, firstLine, staffSpacing):
-    below = ['f2', 'e2', 'd2', 'c2', 'b', 'a', 'g', 'f', 'e', 'd', 'c']
+    below = ['f2', 'e2', 'd2', 'c2', 'b1', 'a1', 'g1', 'f1', 'e1', 'd1', 'c1']
     above = ['f2', 'g2', 'a2', 'b2']
 
     distance = abs(mid - firstLine)
@@ -463,3 +489,25 @@ def get_vertical_center_of_gravity(image):
     # Calculate the image's vertical center of gravity
     avg = np.where(image)[0]
     return np.average(avg)
+
+
+def detect_chord(slc, staffDim):
+    staffSpacing = staffDim[2]
+    heads = np.copy(slc).astype(np.uint8)
+
+    # Use an elliptical structuring element
+    w = staffSpacing // 2
+    h = int(staffSpacing * 5/6) // 2
+    SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
+    SE_ellipse = rotate(SE_ellipse, angle=30)
+
+    # @note skimage sucks
+    heads = morphologyEx(heads, MORPH_ERODE, SE_ellipse,
+                         borderType=BORDER_CONSTANT, borderValue=0)
+    heads = morphologyEx(heads, MORPH_OPEN, SE_ellipse,
+                         borderType=BORDER_CONSTANT, borderValue=0)
+
+    boundingBoxes = Utility.get_bounding_boxes(heads)
+    numHeads = len(boundingBoxes)
+
+    return numHeads > 1

@@ -5,8 +5,9 @@ import pickle
 # from sklearn.svm import LinearSVC
 
 from FeatureExtractor import FeatureExtractor
-from Component import BaseComponent, Meter, Note, Accidental
-from Processing import extract_heads, get_number_of_heads
+from Component import BaseComponent, Meter, Note, Accidental, Chord
+import Processing
+#from Processing import extract_heads, get_number_of_heads, detect_chord
 from Utility import get_vertical_projection
 
 
@@ -48,6 +49,16 @@ class Classifier:
 
             # Flagged note or chord
 
+            isChord = Processing.detect_chord(slc, staffDim)
+
+            # Chord
+            if isChord:
+                chord = Chord(cmp.box)
+                chord.filled = True
+                baseComponents[i] = chord
+                continue
+
+            # Flagged note
             baseComponents[i] = Note(cmp.box)
             Classifier.assign_note_filled(
                 image, baseComponents[i], staffDim)
@@ -65,11 +76,11 @@ class Classifier:
     def assign_note_filled(image, note, staffDim):
         slc = image[note.slice]
         clf = Classifier.__classifiers['note_filled']
-        #note.filled = clf.extract_and_predict(slc)[0] == 'filled'
+        # note.filled = clf.extract_and_predict(slc)[0] == 'filled'
 
-        heads = extract_heads(slc, staffDim, filterAR=False)
+        heads = Processing.extract_heads(slc, staffDim, filterAR=False)
         vHist = get_vertical_projection(heads) > 0
-        numHeads = get_number_of_heads(vHist)
+        numHeads = Processing.get_number_of_heads(vHist)
         if(numHeads > 0):
             note.filled = True
 

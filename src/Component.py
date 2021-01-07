@@ -27,7 +27,7 @@ class Accidental(BaseComponent):
 
     def __repr__(self):
         return ''
-    
+
     def get_details(self):
         return f'<Accidental {self.pos} kind: {self.kind}>'
 
@@ -43,10 +43,11 @@ class Note(BaseComponent):
         self.artdots = ''
 
     def __repr__(self):
-        return f'{self.tone}{self.accidental}/{self.timing}{self.artdots}'
+        return f'{self.tone[0]}{self.accidental}{self.tone[1:]}/{self.timing}{self.artdots}'
 
     def get_details(self):
         return f'<Note {self.pos} beamed: {self.beamed}, filled: {self.filled}, timing: {self.timing}, tone: {self.tone}>'
+
 
 class Meter(BaseComponent):
     def __init__(self, box):
@@ -59,3 +60,19 @@ class Meter(BaseComponent):
 
     def get_details(self):
         return f'<Meter {self.pos} time: {self.time}>'
+
+
+class Chord(BaseComponent):
+    def __init__(self, box):
+        super().__init__(box)
+        self.timing = None
+        self.tones = None
+        self.filled = False
+
+    def __repr__(self):
+        l = map(lambda x: f'{x}/{self.timing}', self.tones)
+        s = ','.join(list(l))
+        return f'{{{s}}}'
+
+    def get_details(self):
+        return f'<Note {self.pos} filled: {self.filled}, timing: {self.timing}, tones: {self.tones}>'
