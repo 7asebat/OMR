@@ -1,11 +1,10 @@
-import sys
-import numpy as np
 from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk, selem
 from scipy.signal import find_peaks
 from scipy.ndimage.interpolation import rotate
 import Utility
 from Component import BaseComponent, Note, Meter, Accidental
-from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_ELLIPSE, morphologyEx, MORPH_OPEN
+from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_ELLIPSE, morphologyEx, MORPH_OPEN, MORPH_ERODE, MORPH_CLOSE
+import numpy as np
 
 from Display import show_images
 
@@ -254,14 +253,10 @@ def assign_note_tones(components, image, lineImage, staffDim):
         if type(note) is not Note:
             continue
 
-        below = ['f2', 'e2', 'd2', 'c2', 'b', 'a', 'g', 'f', 'e', 'd', 'c']
-        above = ['f2', 'g2', 'a2', 'b2']
         staffSpacing = staffDim[2]
         firstLine = np.argmax(lineImage) // lineImage.shape[1]
 
         def extract_head(image):
-            staffSpacing = staffDim[2]
-            closedImage = image
             closedImage = binary_closing(image).astype(np.uint8)
 
             # Use an elliptical structuring element
@@ -287,56 +282,14 @@ def assign_note_tones(components, image, lineImage, staffDim):
 
         head = extract_head(head)
 
-        def get_mid(head):
-            # Calculate the image's center of gravity
-            avg = np.where(head)[0]
-            return np.average(avg)
-
-        mid = get_mid(head)
+        mid = get_vertical_center_of_gravity(head)
 
         try:
             mid += note.y
-            distance = abs(mid - firstLine)
-            distance /= staffSpacing / 2
-            distance = int(distance + 0.5)
-
-            # @note This is a hacky fix which assumes that ONLY `c, b2` notes
-            # are sometimes further than their standard distance
-            bi = min(distance, len(below)-1)
-            ai = min(distance, len(above)-1)
-            note.tone = below[bi] if mid >= firstLine else above[ai]
+            note.tone = get_tone(mid, firstLine, staffSpacing)
 
         except Exception as e:
             print(e, end='\n\t')
-
-
-def analyze_notes(noteImage, lineImage, staffDim):
-    '''
-    Log how far the bounding box is from the first line
-    And whether it's over or under it
-    '''
-    below = ['f2', 'e2', 'd2', 'c2', 'b', 'a', 'g', 'f', 'e', 'd', 'c']
-    above = ['f2', 'g2', 'a2', 'b2']
-
-    staffSpacing = staffDim[2]
-    firstLine = np.argmax(lineImage) // lineImage.shape[1]
-    boundingBoxes = Utility.get_bounding_boxes(noteImage)
-    boundingBoxes.sort()
-
-    notes = []
-    for _, _, yl, yh in boundingBoxes:
-        mid = (yl + yh) // 2
-        distance = abs(mid - firstLine)
-        distance /= staffSpacing / 2
-        distance = int(round(distance))
-
-        if mid >= firstLine:
-            notes.append(below[distance])
-
-        else:
-            notes.append(above[distance])
-
-    return notes
 
 
 def split_bars(image):
@@ -419,3 +372,93 @@ def bind_accidentals_to_following_notes(components):
     for i, cmp in enumerate(components[:-1]):
         if type(cmp) is Accidental and type(components[i+1]) is Note:
             components[i+1].accidental = cmp.kind if cmp.kind != 'nat' else ''
+
+
+def process_chord(chord, image, lineImage, staffDim):
+    staffSpacing = staffDim[2]
+    firstLine = np.argmax(lineImage) // lineImage.shape[1]
+
+    # Extract heads
+    img = np.copy(image[chord.slice]).astype(np.uint8)
+    heads = np.copy(img)
+
+    # Use an elliptical structuring element
+    w = staffSpacing // 2
+    h = int(staffSpacing * 5/6) // 2
+    SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
+    SE_ellipse = rotate(SE_ellipse, angle=30)
+
+    # @note skimage sucks
+    heads = morphologyEx(heads, MORPH_ERODE, SE_ellipse,
+                         borderType=BORDER_CONSTANT, borderValue=0)
+    heads = morphologyEx(heads, MORPH_OPEN, SE_ellipse,
+                         borderType=BORDER_CONSTANT, borderValue=0)
+
+    headCenter = get_vertical_center_of_gravity(heads)
+
+    furthest = 'below'
+    if headCenter < chord.height // 2:
+        furthest = 'above'
+
+    boxes = Utility.get_bounding_boxes(heads)
+    tones = []
+    for _, _, yl, yh in boxes:
+        mid = (yh + yl) // 2
+        mid += chord.y
+        tones.append(get_tone(mid, firstLine, staffSpacing))
+
+    # Get stem
+    stem = np.copy(img)
+    for xl, xh, yl, yh in boxes:
+        slc = (slice(yl, yh), slice(xl, xh))
+        stem[slc] = False
+    stem = binary_opening(stem, selem=np.ones((3*staffSpacing, 1)))
+
+    # Reset head image to original note head size
+    w = staffSpacing
+    h = int(staffSpacing * 5/6)
+    SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
+    SE_ellipse = rotate(SE_ellipse, angle=30)
+    heads = morphologyEx(img, MORPH_OPEN, SE_ellipse,
+                         borderType=BORDER_CONSTANT, borderValue=0)
+
+    # Retain only the furthest head
+    if furthest == 'below':
+        furthest = max(boxes, key=lambda x: x[2])
+    else:
+        furthest = min(boxes, key=lambda x: x[2])
+    oneHead = np.copy(heads)
+    for box in boxes:
+        if box != furthest:
+            xl, xh, yl, yh = box
+            slc = (slice(yl, yh), slice(xl, xh))
+            oneHead[slc] = False
+
+    oneHead = morphologyEx(oneHead, MORPH_OPEN, SE_ellipse,
+                           borderType=BORDER_CONSTANT, borderValue=0)
+
+    show_images([stem, oneHead])
+
+    final = binary_closing(stem | oneHead)
+    return final, tones
+
+
+def get_tone(mid, firstLine, staffSpacing):
+    below = ['f2', 'e2', 'd2', 'c2', 'b', 'a', 'g', 'f', 'e', 'd', 'c']
+    above = ['f2', 'g2', 'a2', 'b2']
+
+    distance = abs(mid - firstLine)
+    distance /= staffSpacing / 2
+    distance = int(distance + 0.5)
+
+    # @note This is a hacky fix which assumes that ONLY `c, b2` notes
+    # are sometimes further than their standard distance
+    bi = min(distance, len(below)-1)
+    ai = min(distance, len(above)-1)
+    return below[bi] if mid >= firstLine else above[ai]
+
+
+def get_vertical_center_of_gravity(image):
+    # Calculate the image's vertical center of gravity
+    avg = np.where(image)[0]
+    return np.average(avg)

@@ -3,11 +3,29 @@ import os
 import json
 from glob import glob
 from shutil import rmtree
+from skimage.morphology import binary_opening, binary_closing
+import numpy as np
 
 import Utility
 import Processing
 import Display
 from Classifier import Classifier
+from Component import Note
+
+
+def demo_chord(chord, sanitized, lineImage, staffDim):
+    chordImg, tones = Processing.process_chord(chord, sanitized, lineImage, staffDim)
+    print(tones)
+    processed = np.copy(sanitized)
+    processed[chord.slice] = chordImg
+
+    xl, xh, yl, yh = chord.box
+    yl += chord.height // 4;
+
+    chord = Note((xl, xh, yl, yh))
+    Classifier.assign_flagged_note_timing(processed, chord)
+    Display.show_images([sanitized[chord.slice], processed[chord.slice]])
+    print(chord)
 
 
 def demo_segmentation(inputPath):
@@ -86,6 +104,9 @@ def demo_classification(inputPath):
         Processing.assign_note_tones(
             components, sanitized, lineImage, staffDim)
         print(Display.get_guido_notation(components), end='\n\t')
+
+        # demo_chord(copmonents[1], sanitized, lineImage, staffDim)
+
 
     print('\n\n')
 
