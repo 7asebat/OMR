@@ -36,7 +36,7 @@ class Note(BaseComponent):
     def __init__(self, box):
         super().__init__(box)
         self.timing = None
-        self.tone = None
+        self.tone = ''
         self.beamed = False
         self.filled = False
         self.accidental = ''
@@ -63,6 +63,7 @@ class Meter(BaseComponent):
 
 
 class Chord(BaseComponent):
+    # @note Check if articulation dots and chords can exist together
     def __init__(self, box):
         super().__init__(box)
         self.timing = None

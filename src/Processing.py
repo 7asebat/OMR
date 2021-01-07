@@ -3,11 +3,19 @@ from scipy.signal import find_peaks
 from scipy.ndimage.interpolation import rotate
 import Utility
 from Component import BaseComponent, Note, Meter, Accidental, Chord
-from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_ELLIPSE, morphologyEx, MORPH_OPEN, MORPH_ERODE, MORPH_CLOSE
+from cv2 import (getStructuringElement,
+                 morphologyEx,
+                 MORPH_ERODE,
+                 MORPH_DILATE,
+                 MORPH_OPEN,
+                 MORPH_CLOSE,
+                 MORPH_ELLIPSE,
+                 MORPH_CROSS,
+                 BORDER_CONSTANT)
 from Classifier import Classifier
 import numpy as np
 
-from Display import show_images
+from Display import show_images, show_images_columns
 
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -31,7 +39,7 @@ def extract_staff_lines(image):
         if not val:
             linesOnly[r] = 0
 
-    # > Get staff line width
+    # Get staff line width
     run = 0
     runFreq = {}
     for val in hHist:
@@ -107,8 +115,7 @@ def extract_heads(image, staffDim, filterAR=True):
 
     closedImage = binary_closing(image)
     if numHeads > 1:
-        closedImage = binary_closing(
-            image, np.ones((10, 10), dtype='bool'))
+        closedImage = binary_closing(image, np.ones((10, 10), dtype='bool'))
 
     # Extract solid heads
     # @note skimage sucks
@@ -124,8 +131,7 @@ def extract_heads(image, staffDim, filterAR=True):
                               borderValue=0)
 
     if filterAR:
-        solidHeads = Utility.keep_elements_in_ar_range(
-            solidHeads, 0.9, 1.5)
+        solidHeads = Utility.keep_elements_in_ar_range(solidHeads, 0.9, 1.5)
 
     mask = binary_opening(solidHeads)
 
@@ -210,9 +216,11 @@ def divide_beams(baseComponents, image, staffDim):
 
 def segment_image(image):
     lineImage, staffDim = extract_staff_lines(image)
-    sanitized, _, closed = sanitize_sheet(image)
+    sanitized, closed = sanitize_sheet(image)
 
     # Get base of components from boundingBoxes
+    # @note Here we use the closed image where all cavities in notes are
+    #       filled and the bounding box results in covering the entire note
     boundingBoxes = Utility.get_bounding_boxes(closed, 0.2)
     baseComponents = Utility.get_base_components(boundingBoxes)
 
@@ -238,9 +246,9 @@ def sanitize_sheet(image):
     closedNotes[:, firstRun] = 0
 
     # This step automatically removes barlines
-    masked, mask = Utility.mask_image(closedNotes, removedLines)
-
-    return masked, mask, closedNotes
+    boxes = Utility.get_bounding_boxes(closedNotes, 0.2)
+    sanitized, _ = Utility.mask_image(removedLines, boxes)
+    return sanitized, closedNotes
 
 
 def assign_note_tones(components, image, lineImage, staffDim):
@@ -486,7 +494,6 @@ def get_tone(mid, firstLine, staffSpacing):
 
 
 def get_vertical_center_of_gravity(image):
-    # Calculate the image's vertical center of gravity
     avg = np.where(image)[0]
     return np.average(avg)
 
@@ -511,3 +518,49 @@ def detect_chord(slc, staffDim):
     numHeads = len(boundingBoxes)
 
     return numHeads > 1
+
+def extract_art_dots(sanitized, staffDim):
+    staffWidth = staffDim[0]
+    artdots = sanitized.astype(np.uint8)
+
+    # Close accidentals
+    r = staffWidth * 3
+    SE_dots = np.ones((r+r, r+r), dtype=np.uint8)
+    SE_dots[:, r:] = 0
+    artdots = morphologyEx(artdots, MORPH_CLOSE, SE_dots,
+                           borderType=BORDER_CONSTANT, borderValue=0)
+    # show_images_columns([sanitized, artdots],
+    #                     ['sanitized', 'artdots'])
+
+    # Open to keep dots
+    r = staffWidth * 3
+    SE_circle = getStructuringElement(MORPH_ELLIPSE, (r, r))
+    artdots = morphologyEx(artdots, MORPH_OPEN, SE_circle,
+                           borderType=BORDER_CONSTANT, borderValue=0)
+
+    # Threshold large elements
+    slc = lambda box: (slice(box[2], box[3]), slice(box[0], box[1]))
+    get_area = lambda box: (box[3] - box[2]) * (box[1] - box[0])
+    areaThreshold = 5 * r * r
+
+    boxes = Utility.get_bounding_boxes(artdots)
+    for box in boxes:
+        if get_area(box) > areaThreshold:
+            artdots[slc(box)] = False
+    artdots = morphologyEx(artdots, MORPH_OPEN, SE_circle,
+                           borderType=BORDER_CONSTANT, borderValue=0)
+    # show_images_columns([sanitized, artdots],
+    #                     ['sanitized', 'artdots'])
+
+    # Dilate to cover two articulation dots
+    SE_dots = np.ones((r, 4*r), dtype=np.uint8)
+    SE_dots[:, :r] = 0
+    artdots = morphologyEx(artdots, MORPH_DILATE, SE_dots,
+                           borderType=BORDER_CONSTANT, borderValue=0)
+    # show_images_columns([sanitized, artdots],
+    #                     ['sanitized', 'artdots'])
+
+    boxes = Utility.get_bounding_boxes(artdots)
+    artdots, _ = Utility.mask_image(sanitized, boxes)
+
+    return artdots

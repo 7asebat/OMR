@@ -9,8 +9,8 @@ from skimage.color import rgb2gray, rgba2rgb
 
 from Component import BaseComponent
 
-# When provided with the correct format of the list of bounding_boxes, this section will set all pixels inside boxes in image_with_boxes
 def set_pixels(image, bounding_boxes):
+    # When provided with the correct format of the list of bounding_boxes, this section will set all pixels inside boxes in image_with_boxes
     image_with_boxes = np.copy(image)
     for box in bounding_boxes:
         Xmin, Xmax, Ymin, Ymax = box
@@ -37,7 +37,8 @@ def get_bounding_boxes(image, lower=0, upper=np.inf):
         dx = xValues.max() - xValues.min()
         dy = yValues.max() - yValues.min()
 
-        if not dy: dy = 1
+        if not dy:
+            dy = 1
         ar = dx / dy
 
         # Filter out barlines
@@ -83,13 +84,14 @@ def get_horizontal_projection_image(hist, shape):
     return histimage
 
 
-def mask_image(connectedimage, image):
+def mask_image(image, boxes):
     '''
-    Masks out all elements that aren't enclosed by a bounding box
-    @note Extract the low ar value
+    Masks out all elements that aren't enclosed by a bounding box.
+        @param image Input image
+        @param boxes Bounding boxes to mask the image
     '''
-    boundingBoxes = get_bounding_boxes(connectedimage, 0.2)
-    mask = set_pixels(np.zeros(connectedimage.shape), boundingBoxes)
+    # @note Extract the low ar value
+    mask = set_pixels(np.zeros(image.shape), boxes)
     return np.where(mask, image, False), mask
 
 
