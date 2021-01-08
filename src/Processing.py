@@ -215,10 +215,7 @@ def divide_beams(baseComponents, image, staffDim):
     return allBaseComponents
 
 
-def detect_art_dots(image):
-    _, staffDim = extract_staff_lines(image)
-    sanitized, _, _ = sanitize_sheet(image)
-
+def detect_art_dots(image, sanitized, staffDim):
     k = np.zeros((3, 3), dtype='uint8')
     k[3//2:3//2+1, :] = 1
 
@@ -231,21 +228,25 @@ def detect_art_dots(image):
     min_area, max_area = (staffDim[2] // 4)**2, (staffDim[2] // 2)**2
 
     art_dots_img = np.zeros(image.shape, dtype='uint8')
+    dotBoxes = []
 
     for xl, xh, yl, yh in boxes:
         area = (xh-xl)*(yh-yl)
         if area > min_area and area < max_area:
+            dotBoxes.append((xl, xh, yl, yh))
             slc = (slice(yl, yh), slice(xl, xh))
             art_dots_img[slc] = 1
 
-    art_dots_img = binary_dilation(
-        art_dots_img, np.ones((3, 3), dtype='uint8'))
-    return art_dots_img
+    dotMask = binary_dilation(art_dots_img, np.ones((4, 4), dtype='uint8'))
+    return dotMask, dotBoxes
 
 
 def segment_image(image):
     lineImage, staffDim = extract_staff_lines(image)
     sanitized, _, closed = sanitize_sheet(image)
+
+    dotMask, dotBoxes = detect_art_dots(image, sanitized, staffDim)
+    closed = np.where(dotMask, False, closed)
 
     # Get base of components from boundingBoxes
     boundingBoxes = Utility.get_bounding_boxes(closed, 0.2)
@@ -254,7 +255,7 @@ def segment_image(image):
     # Cut beams into notes
     baseComponents = divide_beams(baseComponents, sanitized, staffDim)
 
-    return baseComponents, sanitized, staffDim, lineImage
+    return baseComponents, sanitized, staffDim, lineImage, dotBoxes
 
 
 def sanitize_sheet(image):
@@ -412,6 +413,27 @@ def bind_accidentals_to_following_notes(components):
     for i, cmp in enumerate(components[:-1]):
         if type(cmp) is Accidental and type(components[i+1]) is Note:
             components[i+1].accidental = cmp.kind if cmp.kind != 'nat' else ''
+
+    for cmp in components:
+        if type(cmp) is Accidental:
+            components.remove(cmp)
+
+
+def bind_dots_to_notes(components, dotBoxes):
+    notes = [note for note in components if type(note) is Note]
+
+    for box in dotBoxes:
+        def sq_distance(note):
+            xl, xh, yl, yh = box
+            noteMid = (note.x + note.width//2, note.y + note.height//2)
+            boxMid = ((xl + xh) // 2, (yl + yh) // 2)
+            diff = []
+            for n, b in zip(noteMid, boxMid):
+                diff.append((n-b)*(n-b))
+            return sum(diff)
+
+        closestNote = min(notes, key=sq_distance)
+        closestNote.artdots += '.'
 
 
 def process_chord(chord, image, lineImage, staffDim):

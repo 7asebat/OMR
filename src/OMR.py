@@ -45,9 +45,7 @@ def demo_segmentation(inputPath):
     Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
 
     for i, group in enumerate(groups):
-        Processing.detect_aug_dots(group)
-
-        components, sanitized, staffDim, lineImage = Processing.segment_image(
+        components, sanitized, staffDim, lineImage, _ = Processing.segment_image(
             group)
 
         Display.show_images_columns([group, sanitized],
@@ -106,12 +104,13 @@ def demo_classification(inputPath):
 
     print(inputPath, end=':\n\t')
     for group in groups:
-        components, sanitized, staffDim, lineImage = Processing.segment_image(
+        components, sanitized, staffDim, lineImage, dotBoxes = Processing.segment_image(
             group)
 
         Classifier.assign_components(sanitized, components, staffDim)
         Processing.join_meters(components)
         Processing.bind_accidentals_to_following_notes(components)
+        Processing.bind_dots_to_notes(components, dotBoxes)
 
         Processing.assign_note_tones(
             components, sanitized, lineImage, staffDim)
@@ -159,7 +158,7 @@ def generate_dataset(inputDirectory, outputDirectory):
         path = os.path.join(inputDirectory, image['path'])
         data = Utility.read_and_threshold_image(path)
 
-        components, sanitized, _, _ = Processing.segment_image(data)
+        components, sanitized, _, _, _ = Processing.segment_image(data)
 
         for record, component in zip(image['segments'], components):
             path = os.path.join(outputDirectory, record)
