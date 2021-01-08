@@ -1,8 +1,7 @@
-from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk, selem
+import numpy as np
+from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk
 from scipy.signal import find_peaks
 from scipy.ndimage.interpolation import rotate
-import Utility
-from Component import BaseComponent, Note, Meter, Accidental, Chord
 from cv2 import (getStructuringElement,
                  morphologyEx,
                  MORPH_ERODE,
@@ -12,8 +11,9 @@ from cv2 import (getStructuringElement,
                  MORPH_ELLIPSE,
                  MORPH_CROSS,
                  BORDER_CONSTANT)
+import Utility
 from Classifier import Classifier
-import numpy as np
+from Component import BaseComponent, Note, Meter, Accidental, Chord
 
 from Display import show_images, show_images_columns
 
@@ -138,7 +138,10 @@ def extract_heads_from_slice(image, staffDim, filterAR=True):
     return mask
 
 
-def extract_heads_from_full_image(image, staffDim, filterAR=True):
+def extract_solid_heads(image, staffDim, filterAR=True):
+    '''
+    @note This takes the full image
+    '''
     staffSpacing = staffDim[2]
 
     # Extract solid heads
@@ -149,13 +152,6 @@ def extract_heads_from_full_image(image, staffDim, filterAR=True):
     SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
     SE_ellipse = rotate(SE_ellipse, angle=30)
 
-    # # Close hollow notes
-    # solidHeads = morphologyEx(solidHeads,
-    #                           MORPH_CLOSE,
-    #                           SE_ellipse,
-    #                           borderType=BORDER_CONSTANT,
-    #                           borderValue=0)
-
     solidHeads = morphologyEx(solidHeads,
                               MORPH_OPEN,
                               SE_ellipse,
@@ -165,9 +161,75 @@ def extract_heads_from_full_image(image, staffDim, filterAR=True):
     if filterAR:
         solidHeads = Utility.keep_elements_in_ar_range(solidHeads, 0.9, 1.5)
 
-    mask = binary_opening(solidHeads)
+    # mask = binary_opening(solidHeads)
 
-    return mask
+    return solidHeads
+
+
+def remove_vertical_elements(image, staffDim):
+    staffSpacing = staffDim[2]
+    SE_vertical = np.ones((2*staffSpacing, 1), dtype=np.uint8)
+    verticalOnly = morphologyEx(image.astype(np.uint8),
+                                MORPH_OPEN, SE_vertical,
+                                borderType=BORDER_CONSTANT, borderValue=0)
+    clean = np.where(verticalOnly, False, image)
+    return binary_opening(clean)
+
+
+def fill_and_extract_hollow_heads(image, staffDim, filterAR=True):
+    '''
+    This only works if the input image does not contain any solid heads,
+    this could be achieved by removing heads detected by `extract_solid_heads`
+    '''
+    staffSpacing = staffDim[2]
+
+    # Close hollow heads
+    # Open to keep heads
+    w = staffSpacing-1
+    h = int(staffSpacing * 6/7)-1
+    SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
+    SE_ellipse = rotate(SE_ellipse, angle=30)
+
+    SE_box = np.ones((staffSpacing, staffSpacing//2))
+    hollowFilled = morphologyEx(image.astype(np.uint8),
+                                MORPH_CLOSE,
+                                SE_box,
+                                borderType=BORDER_CONSTANT,
+                                borderValue=0)
+
+    heads = morphologyEx(hollowFilled,
+                         MORPH_OPEN,
+                         SE_ellipse,
+                         borderType=BORDER_CONSTANT,
+                         borderValue=0)
+
+    if filterAR:
+        heads = Utility.keep_elements_in_ar_range(heads, 0.9, 1.5)
+
+    # show_images_columns([image, hollowFilled, heads],
+    #                     ['hollowOnly', 'hollowFilled', 'heads'])
+
+    # mask = binary_opening(solidHeads)
+    return heads
+
+
+def expand_and_mask_notes(image, noteImage, staffDim):
+    staffWidth = staffDim[0]
+    RADIUS = staffWidth * 3 - 1
+    WIDTH = 9 * RADIUS
+    HEIGHT = 4 * RADIUS
+
+    # Mask image to extract a rectangular window around each note head
+    SE_expandNotes = np.ones((2*HEIGHT, 2*WIDTH), dtype=np.uint8)
+    SE_expandNotes[:HEIGHT, :] = 0   # Dilate up
+    SE_expandNotes[:, WIDTH:] = 0    # Dilate right
+    mask = morphologyEx(noteImage.astype(np.uint8),
+                        MORPH_DILATE, SE_expandNotes,
+                        borderType=BORDER_CONSTANT, borderValue=0)
+
+    maskBoxes = Utility.get_bounding_boxes(mask)
+    masked, mask = Utility.mask_image(image, maskBoxes)
+    return masked, mask
 
 
 def divide_component(c, vHist):
@@ -561,29 +623,51 @@ def extract_articulation_dots(image, staffDim):
     RADIUS = staffWidth * 3 - 1
 
     # Mask image to extract a rectangular window around each note head
-    noteImage = extract_heads_from_full_image(image, staffDim, filterAR=True)
-    SE_expandNotes = np.ones((2*RADIUS, 12*RADIUS), dtype=np.uint8)
-    SE_expandNotes[:RADIUS, :] = 0      # Dilate up
-    SE_expandNotes[:, 6*RADIUS:] = 0    # Dilate right
-    mask = morphologyEx(noteImage.astype(np.uint8),
-                        MORPH_DILATE, SE_expandNotes,
-                        borderType=BORDER_CONSTANT, borderValue=0)
+    solidHeads = extract_solid_heads(image, staffDim)
+    solidMasked, solidMask = expand_and_mask_notes(image, solidHeads, staffDim)
 
-    maskBoxes = Utility.get_bounding_boxes(mask)
-    masked, _ = Utility.mask_image(image, maskBoxes)
-
-    # Remove note heads from the masked image
-    masked = np.where(binary_dilation(noteImage), False, masked).astype(np.uint8)
-    show_images_columns([image, masked],
-                        ['Input image', 'Image before opening'])
+    # Remove note heads from the masked image, dilate to cover more distance
+    SE_box = np.ones((3*RADIUS, 3*RADIUS), dtype=np.uint8)
+    headsToRemove = morphologyEx(solidHeads,
+                                 MORPH_DILATE, SE_box,
+                                 borderType=BORDER_CONSTANT, borderValue=0)
+    solidMasked = np.where(headsToRemove, False, solidMasked).astype(np.uint8)
 
     # Open to remove noise
     SE_circle = getStructuringElement(MORPH_ELLIPSE, (RADIUS, RADIUS))
-    artdotImage = morphologyEx(masked,
-                           MORPH_OPEN, SE_circle,
-                           borderType=BORDER_CONSTANT, borderValue=0)
+    solidDots = morphologyEx(solidMasked,
+                             MORPH_OPEN, SE_circle,
+                             borderType=BORDER_CONSTANT, borderValue=0)
 
-    return artdotImage
+    # Retain only hollow heads
+    hollowOnly = np.where(solidMask, False, image)
+    hollowOnly = binary_opening(hollowOnly).astype(np.uint8)
+    hollowOnly = remove_vertical_elements(hollowOnly, staffDim)
+
+    # Fill and mask image to extract a rectangular window around each note head
+    hollowHeads = fill_and_extract_hollow_heads(hollowOnly, staffDim)
+    hollowMasked, hollowMask = expand_and_mask_notes(hollowOnly, hollowHeads, staffDim)
+    # show_images_columns([image, hollowOnly, hollowMasked],
+    #                     ['image', 'hollowOnly', 'hollowMasked'])
+
+    # Remove filled heads from the masked image, dilate to cover more distance
+    SE_box = np.ones((3*RADIUS, 3*RADIUS), dtype=np.uint8)
+    headsToRemove = morphologyEx(hollowHeads,
+                                 MORPH_DILATE, SE_box,
+                                 borderType=BORDER_CONSTANT, borderValue=0)
+    hollowMasked = np.where(headsToRemove, False, hollowMasked).astype(np.uint8)
+    # show_images_columns([image, headsToRemove, hollowMasked],
+    #                     ['image', 'headsToRemove', 'hollowMasked'])
+
+    # Open to remove noise
+    SE_circle = getStructuringElement(MORPH_ELLIPSE, (RADIUS, RADIUS))
+    hollowDots = morphologyEx(hollowMasked,
+                              MORPH_OPEN, SE_circle,
+                              borderType=BORDER_CONSTANT, borderValue=0)
+
+    show_images_columns([image, solidDots, hollowDots],
+                        ['image', 'solidDots', 'hollowDots'])
+    return solidDots | hollowDots
     # # Close accidentals
     # RADIUS = staffWidth * 3
     # SE_dots = np.ones((2*RADIUS, RADIUS), dtype=np.uint8)

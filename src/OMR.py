@@ -13,23 +13,17 @@ from Component import Note
 
 def demo_segmentation(inputPath):
     image = Utility.read_and_threshold_image(inputPath)
-
     groups = Processing.split_bars(image)
-    Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
+    if len(groups) > 1:
+        Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
 
     for i, group in enumerate(groups):
         components, sanitized, staffDim, _ = Processing.segment_image(group)
-
-        Display.show_images_columns([group, sanitized],
-                                    ['Original Image', 'Sanitized'],
-                                    f'Group #{i}')
-
-        # Showing note heads
-        noteImage = Processing.extract_heads_from_slice(sanitized, staffDim)
+        noteImage = Processing.extract_solid_heads(sanitized, staffDim)
         artdotImage = Processing.extract_articulation_dots(sanitized, staffDim)
 
-        Display.show_images_columns([sanitized, noteImage, artdotImage],
-                                    ['Sanitized Image', 'Note heads', 'Articulation dots'],
+        Display.show_images_columns([group, sanitized, noteImage, artdotImage],
+                                    ['Original Image', 'Sanitized Image', 'Note heads', 'Articulation dots'],
                                     f'Group #{i}')
 
         Display.show_images([sanitized[cmp.slice] for cmp in components])
