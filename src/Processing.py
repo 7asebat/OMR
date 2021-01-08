@@ -223,7 +223,7 @@ def detect_art_dots(image, sanitized, staffDim):
 
     # Get base of components from boundingBoxes
     boxes = Utility.get_bounding_boxes(
-        sanitized, 0.8, 1.4, take_subsets=False)
+        sanitized, 0.8, 1.35, take_subsets=False)
 
     min_area, max_area = (staffDim[2] // 4)**2, (staffDim[2] // 2)**2
 
@@ -231,10 +231,13 @@ def detect_art_dots(image, sanitized, staffDim):
     dotBoxes = []
 
     for xl, xh, yl, yh in boxes:
+        slc = (slice(yl, yh), slice(xl, xh))
         area = (xh-xl)*(yh-yl)
-        if area > min_area and area < max_area:
+        white = np.argwhere(sanitized[slc]).shape[0]
+        ratio = white / area
+
+        if area > min_area and area < max_area and ratio > 0.68:
             dotBoxes.append((xl, xh, yl, yh))
-            slc = (slice(yl, yh), slice(xl, xh))
             art_dots_img[slc] = 1
 
     dotMask = binary_dilation(art_dots_img, np.ones((4, 4), dtype='uint8'))
