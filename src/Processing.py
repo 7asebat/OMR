@@ -223,7 +223,7 @@ def detect_art_dots(image, sanitized, staffDim):
 
     # Get base of components from boundingBoxes
     boxes = Utility.get_bounding_boxes(
-        sanitized, 0.9, 1.2, take_subsets=False)
+        sanitized, 0.8, 1.4, take_subsets=False)
 
     min_area, max_area = (staffDim[2] // 4)**2, (staffDim[2] // 2)**2
 
