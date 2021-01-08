@@ -1,6 +1,7 @@
 from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk, selem
 from scipy.signal import find_peaks
 from scipy.ndimage.interpolation import rotate
+from skimage.measure import find_contours
 import Utility
 from Component import BaseComponent, Note, Meter, Accidental, Chord
 from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_ELLIPSE, morphologyEx, MORPH_OPEN, MORPH_ERODE, MORPH_CLOSE
@@ -23,6 +24,12 @@ def extract_staff_lines(image):
     linesOnly = np.copy(image)
 
     hHist = Utility.get_horizontal_projection(image)
+
+    # h_hist_img = np.zeros((len(hHist)+2, hHist.max()), dtype='uint8')
+    # for i, val in enumerate(hHist):
+    #     h_hist_img[i, :val] = True
+    # show_images([h_hist_img])
+
     length = hHist.max()
     lengthThreshold = 0.85 * hHist.max()
 
@@ -206,6 +213,34 @@ def divide_beams(baseComponents, image, staffDim):
     # Sort components according to xpos
     allBaseComponents.sort(key=BaseComponent.sort_x_key)
     return allBaseComponents
+
+
+def detect_art_dots(image):
+    _, staffDim = extract_staff_lines(image)
+    sanitized, _, _ = sanitize_sheet(image)
+
+    k = np.zeros((3, 3), dtype='uint8')
+    k[3//2:3//2+1, :] = 1
+
+    sanitized = binary_opening(sanitized, k)
+
+    # Get base of components from boundingBoxes
+    boxes = Utility.get_bounding_boxes(
+        sanitized, 0.9, 1.2, take_subsets=False)
+
+    min_area, max_area = (staffDim[2] // 4)**2, (staffDim[2] // 2)**2
+
+    art_dots_img = np.zeros(image.shape, dtype='uint8')
+
+    for xl, xh, yl, yh in boxes:
+        area = (xh-xl)*(yh-yl)
+        if area > min_area and area < max_area:
+            slc = (slice(yl, yh), slice(xl, xh))
+            art_dots_img[slc] = 1
+
+    art_dots_img = binary_dilation(
+        art_dots_img, np.ones((3, 3), dtype='uint8'))
+    return art_dots_img
 
 
 def segment_image(image):

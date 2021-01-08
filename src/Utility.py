@@ -10,6 +10,8 @@ from skimage.color import rgb2gray, rgba2rgb
 from Component import BaseComponent
 
 # When provided with the correct format of the list of bounding_boxes, this section will set all pixels inside boxes in image_with_boxes
+
+
 def set_pixels(image, bounding_boxes):
     image_with_boxes = np.copy(image)
     for box in bounding_boxes:
@@ -20,7 +22,7 @@ def set_pixels(image, bounding_boxes):
     return image_with_boxes
 
 
-def get_bounding_boxes(image, lower=0, upper=np.inf):
+def get_bounding_boxes(image, lower=0, upper=np.inf, take_subsets=False):
     def is_subset(l, r):
         subset = l[0] >= r[0]
         subset &= l[1] <= r[1]
@@ -37,22 +39,27 @@ def get_bounding_boxes(image, lower=0, upper=np.inf):
         dx = xValues.max() - xValues.min()
         dy = yValues.max() - yValues.min()
 
-        if not dy: dy = 1
+        if not dy:
+            dy = 1
         ar = dx / dy
 
-        # Filter out barlines
-        # Keep larger bounding box
-        # Filter overlapping bounding boxes
-        insertNew = True
-        if lower <= ar <= upper:
-            for x in boundingBoxes:
-                if is_subset(x, box):
-                    boundingBoxes.remove(x)
-                elif is_subset(box, x):
-                    insertNew = False
-
-            if insertNew:
+        if take_subsets:
+            if lower <= ar <= upper:
                 boundingBoxes.append(box)
+        else:
+            # Filter out barlines
+            # Keep larger bounding box
+            # Filter overlapping bounding boxes
+            insertNew = True
+            if lower <= ar <= upper:
+                for x in boundingBoxes:
+                    if is_subset(x, box):
+                        boundingBoxes.remove(x)
+                    elif is_subset(box, x):
+                        insertNew = False
+
+                if insertNew:
+                    boundingBoxes.append(box)
 
     return boundingBoxes
 

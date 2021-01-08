@@ -41,11 +41,12 @@ from Component import Note
 
 def demo_segmentation(inputPath):
     image = Utility.read_and_threshold_image(inputPath)
-
     groups = Processing.split_bars(image)
     Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
 
     for i, group in enumerate(groups):
+        Processing.detect_aug_dots(group)
+
         components, sanitized, staffDim, lineImage = Processing.segment_image(
             group)
 
