@@ -108,7 +108,7 @@ def remove_staff_lines(image, linesOnly, staffDim):
     return clean
 
 
-def extract_heads(image, staffDim, filterAR=True):
+def extract_heads_from_slice(image, staffDim, filterAR=True):
     staffSpacing = staffDim[2]
     vHist = Utility.get_vertical_projection(image) > 0
     numHeads = get_number_of_heads(vHist)
@@ -125,6 +125,38 @@ def extract_heads(image, staffDim, filterAR=True):
     SE_ellipse = rotate(SE_ellipse, angle=30)
 
     solidHeads = morphologyEx(closedImage.astype(np.uint8),
+                              MORPH_OPEN,
+                              SE_ellipse,
+                              borderType=BORDER_CONSTANT,
+                              borderValue=0)
+
+    if filterAR:
+        solidHeads = Utility.keep_elements_in_ar_range(solidHeads, 0.9, 1.5)
+
+    mask = binary_opening(solidHeads)
+
+    return mask
+
+
+def extract_heads_from_full_image(image, staffDim, filterAR=True):
+    staffSpacing = staffDim[2]
+
+    # Extract solid heads
+    # @note skimage sucks
+    solidHeads = image.astype(np.uint8)
+    w = staffSpacing
+    h = int(staffSpacing * 6/7)
+    SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
+    SE_ellipse = rotate(SE_ellipse, angle=30)
+
+    # # Close hollow notes
+    # solidHeads = morphologyEx(solidHeads,
+    #                           MORPH_CLOSE,
+    #                           SE_ellipse,
+    #                           borderType=BORDER_CONSTANT,
+    #                           borderValue=0)
+
+    solidHeads = morphologyEx(solidHeads,
                               MORPH_OPEN,
                               SE_ellipse,
                               borderType=BORDER_CONSTANT,
@@ -193,7 +225,7 @@ def divide_beams(baseComponents, image, staffDim):
     allBaseComponents = []
     for cmp in baseComponents:
         slicedImage = image[cmp.y:cmp.y+cmp.height, cmp.x:cmp.x+cmp.width]
-        heads = extract_heads(slicedImage, staffDim)
+        heads = extract_heads_from_slice(slicedImage, staffDim)
         vHist = Utility.get_vertical_projection(heads) > 0
 
         numHeads = get_number_of_heads(vHist)
@@ -519,48 +551,81 @@ def detect_chord(slc, staffDim):
 
     return numHeads > 1
 
-def extract_art_dots(sanitized, staffDim):
+
+def extract_articulation_dots(image, staffDim):
+    '''
+    Takes an image which is sanitized from clefs and staff lines, 
+    and returns an image with only the articulation dots
+    '''
     staffWidth = staffDim[0]
-    artdots = sanitized.astype(np.uint8)
+    RADIUS = staffWidth * 3 - 1
 
-    # Close accidentals
-    r = staffWidth * 3
-    SE_dots = np.ones((r+r, r+r), dtype=np.uint8)
-    SE_dots[:, r:] = 0
-    artdots = morphologyEx(artdots, MORPH_CLOSE, SE_dots,
+    # Mask image to extract a rectangular window around each note head
+    noteImage = extract_heads_from_full_image(image, staffDim, filterAR=True)
+    SE_expandNotes = np.ones((2*RADIUS, 12*RADIUS), dtype=np.uint8)
+    SE_expandNotes[:RADIUS, :] = 0      # Dilate up
+    SE_expandNotes[:, 6*RADIUS:] = 0    # Dilate right
+    mask = morphologyEx(noteImage.astype(np.uint8),
+                        MORPH_DILATE, SE_expandNotes,
+                        borderType=BORDER_CONSTANT, borderValue=0)
+
+    maskBoxes = Utility.get_bounding_boxes(mask)
+    masked, _ = Utility.mask_image(image, maskBoxes)
+
+    # Remove note heads from the masked image
+    masked = np.where(binary_dilation(noteImage), False, masked).astype(np.uint8)
+    show_images_columns([image, masked],
+                        ['Input image', 'Image before opening'])
+
+    # Open to remove noise
+    SE_circle = getStructuringElement(MORPH_ELLIPSE, (RADIUS, RADIUS))
+    artdotImage = morphologyEx(masked,
+                           MORPH_OPEN, SE_circle,
                            borderType=BORDER_CONSTANT, borderValue=0)
+
+    return artdotImage
+    # # Close accidentals
+    # RADIUS = staffWidth * 3
+    # SE_dots = np.ones((2*RADIUS, RADIUS), dtype=np.uint8)
+    # artdots = morphologyEx(artdots,
+    #                        MORPH_CLOSE, SE_dots,
+    #                        borderType=BORDER_CONSTANT, borderValue=0)
     # show_images_columns([sanitized, artdots],
-    #                     ['sanitized', 'artdots'])
+    #                     ['sanitized', 'artdots: Close accidentals'])
 
-    # Open to keep dots
-    r = staffWidth * 3
-    SE_circle = getStructuringElement(MORPH_ELLIPSE, (r, r))
-    artdots = morphologyEx(artdots, MORPH_OPEN, SE_circle,
-                           borderType=BORDER_CONSTANT, borderValue=0)
-
-    # Threshold large elements
-    slc = lambda box: (slice(box[2], box[3]), slice(box[0], box[1]))
-    get_area = lambda box: (box[3] - box[2]) * (box[1] - box[0])
-    areaThreshold = 5 * r * r
-
-    boxes = Utility.get_bounding_boxes(artdots)
-    for box in boxes:
-        if get_area(box) > areaThreshold:
-            artdots[slc(box)] = False
-    artdots = morphologyEx(artdots, MORPH_OPEN, SE_circle,
-                           borderType=BORDER_CONSTANT, borderValue=0)
+    # # Open to keep dots
+    # RADIUS = staffWidth * 3
+    # SE_circle = getStructuringElement(MORPH_ELLIPSE, (RADIUS, RADIUS))
+    # artdots = morphologyEx(artdots, MORPH_OPEN, SE_circle,
+    #                        borderType=BORDER_CONSTANT, borderValue=0)
     # show_images_columns([sanitized, artdots],
-    #                     ['sanitized', 'artdots'])
+    #                     ['sanitized', 'artdots: Opening'])
 
-    # Dilate to cover two articulation dots
-    SE_dots = np.ones((r, 4*r), dtype=np.uint8)
-    SE_dots[:, :r] = 0
-    artdots = morphologyEx(artdots, MORPH_DILATE, SE_dots,
-                           borderType=BORDER_CONSTANT, borderValue=0)
+    # # Threshold large elements
+    # def slc(box): return (slice(box[2], box[3]), slice(box[0], box[1]))
+    # def get_area(box): return (box[3] - box[2]) * (box[1] - box[0])
+    # areaThreshold = 5 * RADIUS * RADIUS
+
+    # boxes = Utility.get_bounding_boxes(artdots)
+    # for box in boxes:
+    #     if get_area(box) > areaThreshold:
+    #         artdots[slc(box)] = False
+    #     else:
+    #         print(get_area(box), RADIUS)
+
+    # artdots = morphologyEx(artdots, MORPH_OPEN, SE_circle,
+    #                        borderType=BORDER_CONSTANT, borderValue=0)
     # show_images_columns([sanitized, artdots],
-    #                     ['sanitized', 'artdots'])
+    #                     ['sanitized', 'artdots: Thresholding'])
 
-    boxes = Utility.get_bounding_boxes(artdots)
-    artdots, _ = Utility.mask_image(sanitized, boxes)
+    # # Dilate to cover two articulation dots
+    # SE_dots = np.ones((RADIUS, 3*RADIUS), dtype=np.uint8)
+    # SE_dots[:, :RADIUS] = 0
+    # artdots = morphologyEx(artdots, MORPH_DILATE, SE_dots,
+    #                        borderType=BORDER_CONSTANT, borderValue=0)
+    # show_images_columns([sanitized, artdots],
+    #                     ['sanitized', 'artdots: Dilation'])
+    # boxes = Utility.get_bounding_boxes(artdots)
+    # artdots, _ = Utility.mask_image(sanitized, boxes)
 
-    return artdots
+    # return artdots

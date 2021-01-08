@@ -75,10 +75,10 @@ class Classifier:
 
     def assign_note_filled(image, note, staffDim):
         slc = image[note.slice]
-        clf = Classifier.__classifiers['note_filled']
+        # clf = Classifier.__classifiers['note_filled']
         # note.filled = clf.extract_and_predict(slc)[0] == 'filled'
 
-        heads = Processing.extract_heads(slc, staffDim, filterAR=False)
+        heads = Processing.extract_heads_from_slice(slc, staffDim, filterAR=False)
         vHist = get_vertical_projection(heads) > 0
         numHeads = Processing.get_number_of_heads(vHist)
         if(numHeads > 0):

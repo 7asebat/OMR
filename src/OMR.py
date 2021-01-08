@@ -18,15 +18,15 @@ def demo_segmentation(inputPath):
     Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
 
     for i, group in enumerate(groups):
-        components, sanitized, staffDim, lineImage = Processing.segment_image(group)
+        components, sanitized, staffDim, _ = Processing.segment_image(group)
 
         Display.show_images_columns([group, sanitized],
                                     ['Original Image', 'Sanitized'],
                                     f'Group #{i}')
 
         # Showing note heads
-        noteImage = Processing.extract_heads(sanitized, staffDim)
-        artdotImage = Processing.extract_art_dots(sanitized, staffDim)
+        noteImage = Processing.extract_heads_from_slice(sanitized, staffDim)
+        artdotImage = Processing.extract_articulation_dots(sanitized, staffDim)
 
         Display.show_images_columns([sanitized, noteImage, artdotImage],
                                     ['Sanitized Image', 'Note heads', 'Articulation dots'],
