@@ -98,7 +98,7 @@ def mask_image(connectedimage, image):
     Masks out all elements that aren't enclosed by a bounding box
     @note Extract the low ar value
     '''
-    boundingBoxes = get_bounding_boxes(connectedimage, 0.2)
+    boundingBoxes = get_bounding_boxes(connectedimage, 0.15)
     mask = set_pixels(np.zeros(connectedimage.shape), boundingBoxes)
     return np.where(mask, image, False), mask
 
