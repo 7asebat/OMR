@@ -331,11 +331,11 @@ def fix_rotation(image):
 
 
 def should_rotate(image):
-    print(image.shape, image.dtype)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     blur = cv2.GaussianBlur(gray, (5, 5), 2)
-    _, threshold = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    _, threshold = cv2.threshold(
+        blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
     lines_edges = cv2.Canny(threshold, 50, 150, apertureSize=7)
 
@@ -359,19 +359,18 @@ def fix_orientation(image):
 def read_and_preprocess_image(path):
     image = cv2.imread(path)
     useAugmented = should_rotate(image)
+    print(useAugmented)
     if useAugmented:
         image = fix_orientation(image)
     else:
         if len(image.shape) > 2:
             if image.shape[2] > 3:
                 image = cv2.cvtColor(image, cv2.COLOR_BGRA2GRAY)
-                # image = rgba2rgb(image)
             else:
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-                # image = (rgb2gray(image) * 255).astype(np.uint8)
 
-            image = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-            # image = image < threshold_otsu(image)
+            _, image = cv2.threshold(
+                image, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
     # @note Here we remove the first row of the image
     #       until we trim the image
