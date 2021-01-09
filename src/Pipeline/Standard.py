@@ -191,7 +191,6 @@ def sanitize_sheet(image):
     removedLines = remove_staff_lines(image, linesOnly, staffDim)
     closedNotes = close_notes(removedLines, staffDim)
 
-
     # Clef removal
 
     vHist = Utility.get_vertical_projection(closedNotes)
@@ -271,7 +270,7 @@ def split_bars(image):
     staffSpacing = staffDim[2]
 
     lineRows = np.unique(np.where(lineImage)[0])
-    
+
     splits = [0]
 
     # Find run spacing larger than staff spacing
@@ -377,7 +376,7 @@ def process_chord(chord, image, lineImage, staffDim):
 
     # Use an elliptical structuring element
     w = staffSpacing // 2
-    h = int(staffSpacing * 5/6) // 2
+    h = int(staffSpacing * 5.5/6) // 2
     SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
     SE_ellipse = rotate(SE_ellipse, angle=30)
 
