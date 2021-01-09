@@ -20,6 +20,17 @@
         "${workspaceFolder}/${input:testcase}"
       ],
       "console": "integratedTerminal"
+    },
+    {
+      "name": "Debug project: Segmentation",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/OMR.py",
+      "args": [
+        "s",
+        "${workspaceFolder}/${input:testcase}"
+      ],
+      "console": "integratedTerminal"
     }
   ],
   "inputs": [

@@ -132,7 +132,9 @@ def read_and_threshold_image(path):
             image = rgba2rgb(image)
         image = (rgb2gray(image) * 255).astype(np.uint8)
 
-    return image < threshold_otsu(image)
+    # @note Here we remove the first row of the image
+    #       until we trim the image
+    return (image < threshold_otsu(image))[1:, :]
 
 
 def slice_image(image, boundingBoxes):
@@ -187,3 +189,9 @@ def save_segments(segments):
         if not os.path.exists('samples'):
             os.makedirs('samples')
         imsave(f'samples/beam{i}.jpg', segment)
+
+
+def get_vertical_center_of_gravity(image):
+    # Calculate the image's vertical center of gravity
+    avg = np.where(image)[0]
+    return np.average(avg)

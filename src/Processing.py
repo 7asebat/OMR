@@ -1,12 +1,14 @@
+import numpy as np
 from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk, selem
 from scipy.signal import find_peaks
 from scipy.ndimage.interpolation import rotate
-import Utility
-from Component import BaseComponent, Note, Meter, Accidental, Chord
+from skimage.measure import find_contours
 from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_ELLIPSE, morphologyEx, MORPH_OPEN, MORPH_ERODE, MORPH_CLOSE
-from Classifier import Classifier
-import numpy as np
 
+import Utility
+from Classifier import Classifier
+from Segmentation import extract_heads, get_number_of_heads, detect_chord, detect_art_dots
+from Component import BaseComponent, Note, Meter, Accidental, Chord
 from Display import show_images
 
 import warnings
@@ -20,20 +22,19 @@ def extract_staff_lines(image):
     # Staff lines using a horizontal histogram
     # Get staff line length
     # Threshold image based on said length
-
-    if(image.max() == 0):
-        return image, (0, 0, 0)
-
     linesOnly = np.copy(image)
 
     hHist = Utility.get_horizontal_projection(image)
 
+    # h_hist_img = np.zeros((len(hHist)+2, hHist.max()), dtype='uint8')
+    # for i, val in enumerate(hHist):
+    #     h_hist_img[i, :val] = True
+    # show_images([h_hist_img])
+
     length = hHist.max()
     lengthThreshold = 0.85 * hHist.max()
 
-    # Utility.visualize_histogram(hHist)
     hHist[hHist < lengthThreshold] = 0
-
     for r, val in enumerate(hHist):
         if not val:
             linesOnly[r] = 0
@@ -41,7 +42,6 @@ def extract_staff_lines(image):
     # > Get staff line width
     run = 0
     runFreq = {}
-
     for val in hHist:
         if val:
             run += 1
@@ -53,16 +53,23 @@ def extract_staff_lines(image):
             run = 0
     width = max(runFreq, key=runFreq.get)
 
-    runs = []
-    startRun = 0
-    for r, val in enumerate(hHist[:-1]):
-        if hHist[r] == 0 and hHist[r+1] > 0:
-            endRun = r+1 - startRun
-            runs.append(endRun)
-        elif hHist[r] > 0 and hHist[r+1] == 0:
-            startRun = r
+    # Get staff line spacing
+    # Find the space between any two consecutive runs
+    rows = []
+    run = False
+    spacing = -1
+    for r, val in enumerate(hHist):
+        if val:
+            run = True
 
-    spacing = int(np.median(runs))
+        elif run:
+            rows.append(r)
+
+            if (len(rows) > 1):
+                spacing = rows[1] - rows[0]
+                break
+
+            run = 0
 
     return linesOnly, (width, length, spacing)
 
@@ -101,38 +108,6 @@ def remove_staff_lines(image, linesOnly, staffDim):
     return clean
 
 
-def extract_heads(image, staffDim, filterAR=True):
-    staffSpacing = staffDim[2]
-    vHist = Utility.get_vertical_projection(image) > 0
-    numHeads = get_number_of_heads(vHist)
-
-    closedImage = binary_closing(image)
-    if numHeads > 1:
-        closedImage = binary_closing(
-            image, np.ones((10, 10), dtype='bool'))
-
-    # Extract solid heads
-    # @note skimage sucks
-    w = staffSpacing
-    h = int(staffSpacing * 6/7)
-    SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
-    SE_ellipse = rotate(SE_ellipse, angle=30)
-
-    solidHeads = morphologyEx(closedImage.astype(np.uint8),
-                              MORPH_OPEN,
-                              SE_ellipse,
-                              borderType=BORDER_CONSTANT,
-                              borderValue=0)
-
-    if filterAR:
-        solidHeads = Utility.keep_elements_in_ar_range(
-            solidHeads, 0.9, 1.5)
-
-    mask = binary_opening(solidHeads)
-
-    return mask
-
-
 def divide_component(c, vHist):
     xpos = []
     endOfLastRun = c.x
@@ -159,29 +134,6 @@ def divide_component(c, vHist):
         divisions.append(newDivision)
 
     return divisions
-
-
-def get_number_of_heads(vHist):
-    numHeads = 0
-    for i, _ in enumerate(vHist[:-1]):
-        if not i and vHist[i]:
-            numHeads += 1
-
-        elif not vHist[i] and vHist[i + 1]:
-            numHeads += 1
-
-    # numHeads = 0
-    # bw = False
-    # for i, _ in enumerate(vHist[:-1]):
-    #     if not bw and vHist[i] and not vHist[i+1]:
-    #         numHeads += 1
-    #         bw = False
-
-    #     elif not vHist[i] and vHist[i + 1]:
-    #         numHeads += 1
-    #         bw = True
-
-    return numHeads
 
 
 def divide_beams(baseComponents, image, staffDim):
@@ -211,77 +163,46 @@ def divide_beams(baseComponents, image, staffDim):
 
 def segment_image(image):
     lineImage, staffDim = extract_staff_lines(image)
-
     sanitized, closed = sanitize_sheet(image)
+
+    dotMask, dotBoxes = detect_art_dots(image, sanitized, staffDim)
+    closed = np.where(dotMask, False, closed)
 
     # Get base of components from boundingBoxes
     boundingBoxes = Utility.get_bounding_boxes(closed, 0.2)
-
-    # for box in boundingBoxes:
-    #     area = (box[1] - box[0]) * (box[3] - box[2])
-    #     if area <= 9:
-    #         boundingBoxes.remove(box)
-
     baseComponents = Utility.get_base_components(boundingBoxes)
 
     # Cut beams into notes
     baseComponents = divide_beams(baseComponents, sanitized, staffDim)
 
-    return baseComponents, sanitized, staffDim, lineImage
+    return baseComponents, sanitized, staffDim, lineImage, dotBoxes
 
 
 def sanitize_sheet(image):
     '''
-    @return (Sanitized image, Sanitization mask, Image after closing)
+    @return (Sanitized image, Closed image)
     '''
-    imageAR = image.shape[1] / image.shape[0]
-    segmentNum = int(np.ceil(imageAR * 5 + 0.5))
-    segmentWidth = image.shape[1] // segmentNum
-    processedImage = np.copy(image)
-    closedImage = np.copy(image)
+    linesOnly, staffDim = extract_staff_lines(image)
 
-    if image.shape[1] % segmentNum:
-        segmentNum += 1
-
-    for i in range(segmentNum):
-        slc_w = slice(i*segmentWidth, min((i+1) *
-                                          segmentWidth, image.shape[1]))
-        segment = image[:, slc_w]
-
-        linesOnly, staffDim = extract_staff_lines(segment)
-
-        k = np.zeros((3, 3), dtype='uint8')
-        k[:, 3//2:3//2+1] = 1
-
-        dilatedLinesOnly = binary_dilation(linesOnly, k)
-
-        # Image - Lines
-        removedLinesSeg = remove_staff_lines(
-            segment, dilatedLinesOnly, staffDim)
-
-        processedImage[:, slc_w] = removedLinesSeg
-        closedNotesSeg = close_notes(removedLinesSeg, staffDim)
-        closedImage[:, slc_w] = closedNotesSeg
+    # Image - Lines
+    removedLines = remove_staff_lines(image, linesOnly, staffDim)
+    closedNotes = close_notes(removedLines, staffDim)
 
     # Clef removal
-    vHist = Utility.get_vertical_projection(processedImage)
+    vHist = Utility.get_vertical_projection(closedNotes)
+    firstRun = Utility.get_first_run(vHist)
+    closedNotes[:, firstRun] = 0
 
-    vHistThresh = vHist.max() * 0.60
+    # This step automatically removes barlines
+    masked, _ = Utility.mask_image(closedNotes, removedLines)
 
-    firstRun = Utility.get_first_run(vHist, vHistThresh)
-
-    processedImage[:, firstRun] = 0
-    closedImage[:, firstRun] = 0
-
-    return processedImage, closedImage
+    return masked, closedNotes
 
 
 def assign_note_tones(components, image, lineImage, staffDim, originalImage):
     '''
     Logs how far the note head's box is from the first line,
     and whether it's over or under it.
-
-    Raises `ValueError` if the supplied component is not a note.
     '''
     for note in components:
         if type(note) is not Note and type(note) is not Chord:
@@ -291,11 +212,7 @@ def assign_note_tones(components, image, lineImage, staffDim, originalImage):
             note = process_chord(note, image, lineImage, staffDim)
             continue
 
-        w_slc = slice(note.x-5, note.x+note.width+5)
-        lineImage, staffDim = extract_staff_lines(originalImage[:, w_slc])
-
         staffSpacing = staffDim[2]
-        staffThickness = staffDim[0]
         firstLine = np.argmax(lineImage) // lineImage.shape[1]
 
         def extract_head(image):
@@ -314,7 +231,6 @@ def assign_note_tones(components, image, lineImage, staffDim, originalImage):
             return head
 
         head = np.copy(image[note.slice])
-
         # @note False classification of filled notes results in
         # unneccessary closing
         if not note.filled:
@@ -325,12 +241,11 @@ def assign_note_tones(components, image, lineImage, staffDim, originalImage):
 
         head = extract_head(head)
 
-        mid = get_vertical_center_of_gravity(head)
-        # show_images([originalImage[:, w_slc]])
+        mid = Utility.get_vertical_center_of_gravity(head)
 
         try:
             mid += note.y
-            note.tone = get_tone(mid, firstLine, staffSpacing, staffThickness)
+            note.tone = get_tone(mid, firstLine, staffSpacing)
 
         except Exception as e:
             print(e, end='\n\t')
@@ -417,10 +332,30 @@ def bind_accidentals_to_following_notes(components):
         if type(cmp) is Accidental and type(components[i+1]) is Note:
             components[i+1].accidental = cmp.kind if cmp.kind != 'nat' else ''
 
+    for cmp in components:
+        if type(cmp) is Accidental:
+            components.remove(cmp)
+
+
+def bind_dots_to_notes(components, dotBoxes):
+    notes = [note for note in components if type(note) is Note]
+
+    for box in dotBoxes:
+        def sq_distance(note):
+            xl, xh, yl, yh = box
+            noteMid = (note.x + note.width//2, note.y + note.height//2)
+            boxMid = ((xl + xh) // 2, (yl + yh) // 2)
+            diff = []
+            for n, b in zip(noteMid, boxMid):
+                diff.append((n-b)*(n-b))
+            return sum(diff)
+
+        closestNote = min(notes, key=sq_distance)
+        closestNote.artdots += '.'
+
 
 def process_chord(chord, image, lineImage, staffDim):
     staffSpacing = staffDim[2]
-    staffThickness = staffDim[0]
     firstLine = np.argmax(lineImage) // lineImage.shape[1]
 
     # Extract heads
@@ -439,7 +374,7 @@ def process_chord(chord, image, lineImage, staffDim):
     heads = morphologyEx(heads, MORPH_OPEN, SE_ellipse,
                          borderType=BORDER_CONSTANT, borderValue=0)
 
-    headCenter = get_vertical_center_of_gravity(heads)
+    headCenter = Utility.get_vertical_center_of_gravity(heads)
 
     furthest = 'below'
     if headCenter < chord.height // 2:
@@ -450,7 +385,7 @@ def process_chord(chord, image, lineImage, staffDim):
     for _, _, yl, yh in boxes:
         mid = (yh + yl) // 2
         mid += chord.y
-        tones.append(get_tone(mid, firstLine, staffSpacing, staffThickness))
+        tones.append(get_tone(mid, firstLine, staffSpacing))
 
     chord.tones = tones
     chord.tones.sort()
@@ -510,63 +445,16 @@ def process_chord(chord, image, lineImage, staffDim):
     return chord
 
 
-def get_tone(mid, firstLine, staffSpacing, staffThickness):
+def get_tone(mid, firstLine, staffSpacing):
     below = ['f2', 'e2', 'd2', 'c2', 'b1', 'a1', 'g1', 'f1', 'e1', 'd1', 'c1']
     above = ['f2', 'g2', 'a2', 'b2']
 
-    below = ['f2', 'e2', 'd2', 'c2', 'b1', 'a1', 'g1', 'f1', 'e1', 'd1', 'c1']
-    below_pos = []
+    distance = abs(mid - firstLine)
+    distance /= staffSpacing / 2
+    distance = int(distance + 0.5)
 
-    above = ['f2', 'g2', 'a2', 'b2']
-    above_pos = []
-
-    lineNow = firstLine + staffThickness / 2
-
-    # print(mid, firstLine, staffSpacing, staffThickness)
-
-    for _, _ in enumerate(below):
-        below_pos.append(lineNow)
-        lineNow += (staffSpacing / 2 + staffThickness / 2)
-
-    lineNow = firstLine + staffSpacing / 2
-    for _, _ in enumerate(above):
-        above_pos.append(lineNow)
-        lineNow -= (staffSpacing / 2 + staffThickness / 2)
-
-    tone = ''
-    if mid > firstLine:
-        idx = (np.abs(below_pos - mid)).argmin()
-        tone = below[idx]
-    else:
-        idx = (np.abs(above_pos - mid)).argmin()
-        tone = above[idx]
-
-    return tone
-
-
-def get_vertical_center_of_gravity(image):
-    # Calculate the image's vertical center of gravity
-    avg = np.where(image)[0]
-    return np.average(avg)
-
-
-def detect_chord(slc, staffDim):
-    staffSpacing = staffDim[2]
-    heads = np.copy(slc).astype(np.uint8)
-
-    # Use an elliptical structuring element
-    w = staffSpacing // 2
-    h = int(staffSpacing * 5/6) // 2
-    SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
-    SE_ellipse = rotate(SE_ellipse, angle=30)
-
-    # @note skimage sucks
-    heads = morphologyEx(heads, MORPH_ERODE, SE_ellipse,
-                         borderType=BORDER_CONSTANT, borderValue=0)
-    heads = morphologyEx(heads, MORPH_OPEN, SE_ellipse,
-                         borderType=BORDER_CONSTANT, borderValue=0)
-
-    boundingBoxes = Utility.get_bounding_boxes(heads)
-    numHeads = len(boundingBoxes)
-
-    return numHeads > 1
+    # @note This is a hacky fix which assumes that ONLY `c, b2` notes
+    # are sometimes further than their standard distance
+    bi = min(distance, len(below)-1)
+    ai = min(distance, len(above)-1)
+    return below[bi] if mid >= firstLine else above[ai]

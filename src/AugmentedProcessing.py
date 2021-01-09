@@ -1,13 +1,14 @@
+from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_ELLIPSE, morphologyEx, MORPH_OPEN, MORPH_ERODE, MORPH_CLOSE
 from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk, selem
 from scipy.signal import find_peaks
 from scipy.ndimage.interpolation import rotate
-import Utility
-from Component import BaseComponent, Note, Meter, Accidental, Chord
-from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_ELLIPSE, morphologyEx, MORPH_OPEN, MORPH_ERODE, MORPH_CLOSE
-from Classifier import Classifier
 import numpy as np
 
+import Utility
+from Classifier import Classifier
+from Component import BaseComponent, Note, Meter, Accidental, Chord
 from Display import show_images
+from Segmentation import extract_heads, get_number_of_heads, detect_chord, detect_art_dots
 
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -101,38 +102,6 @@ def remove_staff_lines(image, linesOnly, staffDim):
     return clean
 
 
-def extract_heads(image, staffDim, filterAR=True):
-    staffSpacing = staffDim[2]
-    vHist = Utility.get_vertical_projection(image) > 0
-    numHeads = get_number_of_heads(vHist)
-
-    closedImage = binary_closing(image)
-    if numHeads > 1:
-        closedImage = binary_closing(
-            image, np.ones((10, 10), dtype='bool'))
-
-    # Extract solid heads
-    # @note skimage sucks
-    w = staffSpacing
-    h = int(staffSpacing * 6/7)
-    SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
-    SE_ellipse = rotate(SE_ellipse, angle=30)
-
-    solidHeads = morphologyEx(closedImage.astype(np.uint8),
-                              MORPH_OPEN,
-                              SE_ellipse,
-                              borderType=BORDER_CONSTANT,
-                              borderValue=0)
-
-    if filterAR:
-        solidHeads = Utility.keep_elements_in_ar_range(
-            solidHeads, 0.9, 1.5)
-
-    mask = binary_opening(solidHeads)
-
-    return mask
-
-
 def divide_component(c, vHist):
     xpos = []
     endOfLastRun = c.x
@@ -159,29 +128,6 @@ def divide_component(c, vHist):
         divisions.append(newDivision)
 
     return divisions
-
-
-def get_number_of_heads(vHist):
-    numHeads = 0
-    for i, _ in enumerate(vHist[:-1]):
-        if not i and vHist[i]:
-            numHeads += 1
-
-        elif not vHist[i] and vHist[i + 1]:
-            numHeads += 1
-
-    # numHeads = 0
-    # bw = False
-    # for i, _ in enumerate(vHist[:-1]):
-    #     if not bw and vHist[i] and not vHist[i+1]:
-    #         numHeads += 1
-    #         bw = False
-
-    #     elif not vHist[i] and vHist[i + 1]:
-    #         numHeads += 1
-    #         bw = True
-
-    return numHeads
 
 
 def divide_beams(baseComponents, image, staffDim):
@@ -214,6 +160,10 @@ def segment_image(image):
 
     sanitized, closed = sanitize_sheet(image)
 
+    # @note This step needs testing
+    dotMask, _ = detect_art_dots(image, sanitized, staffDim)
+    closed = np.where(dotMask, False, closed)
+
     # Get base of components from boundingBoxes
     boundingBoxes = Utility.get_bounding_boxes(closed, 0.2)
 
@@ -232,7 +182,7 @@ def segment_image(image):
 
 def sanitize_sheet(image):
     '''
-    @return (Sanitized image, Sanitization mask, Image after closing)
+    @return (Sanitized image, Closed image)
     '''
     imageAR = image.shape[1] / image.shape[0]
     segmentNum = int(np.ceil(imageAR * 5 + 0.5))
@@ -280,8 +230,6 @@ def assign_note_tones(components, image, lineImage, staffDim, originalImage):
     '''
     Logs how far the note head's box is from the first line,
     and whether it's over or under it.
-
-    Raises `ValueError` if the supplied component is not a note.
     '''
     for note in components:
         if type(note) is not Note and type(note) is not Chord:
@@ -548,25 +496,3 @@ def get_vertical_center_of_gravity(image):
     # Calculate the image's vertical center of gravity
     avg = np.where(image)[0]
     return np.average(avg)
-
-
-def detect_chord(slc, staffDim):
-    staffSpacing = staffDim[2]
-    heads = np.copy(slc).astype(np.uint8)
-
-    # Use an elliptical structuring element
-    w = staffSpacing // 2
-    h = int(staffSpacing * 5/6) // 2
-    SE_ellipse = getStructuringElement(MORPH_ELLIPSE, (w, h))
-    SE_ellipse = rotate(SE_ellipse, angle=30)
-
-    # @note skimage sucks
-    heads = morphologyEx(heads, MORPH_ERODE, SE_ellipse,
-                         borderType=BORDER_CONSTANT, borderValue=0)
-    heads = morphologyEx(heads, MORPH_OPEN, SE_ellipse,
-                         borderType=BORDER_CONSTANT, borderValue=0)
-
-    boundingBoxes = Utility.get_bounding_boxes(heads)
-    numHeads = len(boundingBoxes)
-
-    return numHeads > 1

@@ -7,49 +7,20 @@ from skimage.morphology import binary_opening, binary_closing
 import numpy as np
 
 import Utility
-import Processing
 import Display
+import Processing as Processing_standard
+import AugmentedProcessing as Processing_augmented
 from Classifier import Classifier
-from Component import Note
 
 
-# def demo_chord(chord, sanitized, lineImage, staffDim):
-#     chordImg, tones = Processing.process_chord(
-#         chord, sanitized, lineImage, staffDim)
-#     print(tones)
-
-#     # crop xdim to fit the note precisely
-#     l, h = 0, 0
-#     vHist = np.sum(chordImg, 0) > 0
-#     for i, _ in enumerate(vHist[:-1]):
-#         if(not vHist[i] and vHist[i+1] and l == 0):
-#             l = i
-#         if(vHist[i]):
-#             h = max(i, h)
-#     h = (chord.width - h)
-
-#     processed = np.copy(sanitized)
-#     processed[chord.slice] = chordImg
-
-#     xl, xh, yl, yh = chord.box
-
-#     chord = Note((xl+l, xh-h, yl, yh))
-#     Classifier.assign_flagged_note_timing(processed, chord)
-#     Display.show_images([sanitized[chord.slice], processed[chord.slice]])
-#     print(chord)
-
-
-def demo_segmentation(inputPath):
+def demo_segmentation(inputPath, Processing):
     image = Utility.read_and_threshold_image(inputPath)
-
-    image = image[1:, :]
 
     groups = Processing.split_bars(image)
     Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
 
     for i, group in enumerate(groups):
-        components, sanitized, staffDim, lineImage = Processing.segment_image(
-            group)
+        components, sanitized, staffDim, lineImage, _ = Processing.segment_image(group)
 
         Display.show_images_columns([group, sanitized],
                                     ['Original Image', 'Sanitized'],
@@ -64,7 +35,7 @@ def demo_segmentation(inputPath):
         Display.show_images([sanitized[cmp.slice] for cmp in components])
 
 
-def demo_classification(inputPath):
+def demo_classification(inputPath, Processing):
     Classifier.load_classifiers({
         'meter_other': {
             'path': 'classifiers/classifier_meter_not_meter',
@@ -110,32 +81,22 @@ def demo_classification(inputPath):
 
     print(inputPath, end=':\n\t')
     for group in groups:
-        components, sanitized, staffDim, lineImage = Processing.segment_image(
-            group)
+        components, sanitized, staffDim, lineImage, dotBoxes = Processing.segment_image(group)
 
         Classifier.assign_components(sanitized, components, staffDim)
 
         Processing.join_meters(components)
         Processing.bind_accidentals_to_following_notes(components)
+        Processing.bind_dots_to_notes(components, dotBoxes)
 
-        Processing.assign_note_tones(
-            components, sanitized, lineImage, staffDim, group)
+        Processing.assign_note_tones(components, sanitized, lineImage, staffDim, group)
         print(Display.get_guido_notation(components), end='\n\t')
 
-        #demo_chord(components[1], sanitized, lineImage, staffDim)
-
+        # demo_chord(components[1], sanitized, lineImage, staffDim)
     print('\n\n')
 
-# Read json manifest
-# For each image
-#   Segment image
-#   For each segment
-#       Map segment to json key
-#       Create segment folder if not found
-#       Append segment image to folder
 
-
-def generate_dataset(inputDirectory, outputDirectory):
+def generate_dataset(inputDirectory, outputDirectory, Processing):
     '''
     inputDirectory should contain all images used for segmentation and dataset generation.
     It should also contain a `manifest.json` file which contains each image's details.
@@ -149,6 +110,13 @@ def generate_dataset(inputDirectory, outputDirectory):
             <Symbol name. i.e.: 1_4, 1_8 >,
         ]
     '''
+    # Read json manifest
+    # For each image
+    #   Segment image
+    #   For each segment
+    #       Map segment to json key
+    #       Create segment folder if not found
+    #       Append segment image to folder
     jsonPath = os.path.join(inputDirectory, 'manifest.json')
 
     if os.path.exists(outputDirectory):
@@ -164,7 +132,7 @@ def generate_dataset(inputDirectory, outputDirectory):
         path = os.path.join(inputDirectory, image['path'])
         data = Utility.read_and_threshold_image(path)
 
-        components, sanitized, _, _ = Processing.segment_image(data)
+        components, sanitized, _, _, _ = Processing.segment_image(data)
 
         for record, component in zip(image['segments'], components):
             path = os.path.join(outputDirectory, record)
@@ -188,9 +156,35 @@ if __name__ == "__main__":
     if len(sys.argv) > 2:
         if sys.argv[1] == 'g':
             print('GENERATING...')
-            generate_dataset(sys.argv[2], 'dataset')
+            generate_dataset(sys.argv[2], 'dataset', Processing_standard)
         elif sys.argv[1] == 's':
-            demo_segmentation(sys.argv[2])
+            demo_segmentation(sys.argv[2], Processing_standard)
 
     else:
-        demo_classification(sys.argv[1])
+        demo_classification(sys.argv[1], Processing_standard)
+
+
+# def demo_chord(chord, sanitized, lineImage, staffDim):
+#     chordImg, tones = Processing.process_chord(
+#         chord, sanitized, lineImage, staffDim)
+#     print(tones)
+
+#     # crop xdim to fit the note precisely
+#     l, h = 0, 0
+#     vHist = np.sum(chordImg, 0) > 0
+#     for i, _ in enumerate(vHist[:-1]):
+#         if(not vHist[i] and vHist[i+1] and l == 0):
+#             l = i
+#         if(vHist[i]):
+#             h = max(i, h)
+#     h = (chord.width - h)
+
+#     processed = np.copy(sanitized)
+#     processed[chord.slice] = chordImg
+
+#     xl, xh, yl, yh = chord.box
+
+#     chord = Note((xl+l, xh-h, yl, yh))
+#     Classifier.assign_flagged_note_timing(processed, chord)
+#     Display.show_images([sanitized[chord.slice], processed[chord.slice]])
+#     print(chord)

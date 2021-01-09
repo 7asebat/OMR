@@ -9,5 +9,5 @@ dependencies:
   - matplotlib
   - numpy
   - scipy
-  - opencv
+  - opencv=4.0.*
   - nb_conda

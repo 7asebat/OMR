@@ -6,10 +6,8 @@ import pickle
 
 from FeatureExtractor import FeatureExtractor
 from Component import BaseComponent, Meter, Note, Accidental, Chord
-import Processing
-#from Processing import extract_heads, get_number_of_heads, detect_chord
+from Segmentation import detect_chord, extract_heads, get_number_of_heads
 from Utility import get_vertical_projection
-import Display
 
 
 class Classifier:
@@ -17,8 +15,7 @@ class Classifier:
 
     def load_classifiers(classifiers):
         for c, cd in classifiers.items():
-            Classifier.__classifiers[c] = Classifier(
-                cd['path'], cd['featureSet'])
+            Classifier.__classifiers[c] = Classifier(cd['path'], cd['featureSet'])
 
     def assign_components(image, baseComponents, staffDim):
         for i, cmp in enumerate(baseComponents):
@@ -33,7 +30,6 @@ class Classifier:
                 continue
 
             # Accidental or note
-
             clf = Classifier.__classifiers['note_accidental']
             tp = clf.extract_and_predict(slc)[0]
 
@@ -44,13 +40,11 @@ class Classifier:
 
             # Beamed note
             if type(baseComponents[i]) is Note:
-                Classifier.assign_beamed_note_timing(
-                    image, baseComponents[i])
+                Classifier.assign_beamed_note_timing(image, baseComponents[i])
                 continue
 
             # Flagged note or chord
-
-            isChord = Processing.detect_chord(slc, staffDim)
+            isChord = detect_chord(slc, staffDim)
 
             # Chord
             if isChord:
@@ -61,8 +55,7 @@ class Classifier:
 
             # Flagged note
             baseComponents[i] = Note(cmp.box)
-            Classifier.assign_note_filled(
-                image, baseComponents[i], staffDim)
+            Classifier.assign_note_filled(image, baseComponents[i], staffDim)
 
     def assign_meter_time(image, meter):
         slc = image[meter.slice]
@@ -76,12 +69,12 @@ class Classifier:
 
     def assign_note_filled(image, note, staffDim):
         slc = image[note.slice]
-        clf = Classifier.__classifiers['note_filled']
+        # clf = Classifier.__classifiers['note_filled']
         # note.filled = clf.extract_and_predict(slc)[0] == 'filled'
 
-        heads = Processing.extract_heads(slc, staffDim, filterAR=False)
+        heads = extract_heads(slc, staffDim, filterAR=False)
         vHist = get_vertical_projection(heads) > 0
-        numHeads = Processing.get_number_of_heads(vHist)
+        numHeads = get_number_of_heads(vHist)
         if(numHeads > 0):
             note.filled = True
 
@@ -122,5 +115,4 @@ class Classifier:
         return self.model.predict([extractedFeatures])
 
     def load_and_train(featureSet, datasetPath):
-        raise NotImplementedError(
-            'Model training has not yet been integrated.')
+        raise NotImplementedError('Model training has not yet been integrated.')
