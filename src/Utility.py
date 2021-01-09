@@ -124,19 +124,6 @@ def keep_elements_in_ar_range(image, lower, upper):
     return filtered
 
 
-def read_and_threshold_image(path):
-    image = imread(path)
-
-    if len(image.shape) == 3:
-        if image.shape[2] > 3:
-            image = rgba2rgb(image)
-        image = (rgb2gray(image) * 255).astype(np.uint8)
-
-    # @note Here we remove the first row of the image
-    #       until we trim the image
-    return (image < threshold_otsu(image))[1:, :]
-
-
 def slice_image(image, boundingBoxes):
     slicedImage = []
     for box in boundingBoxes:

@@ -13,7 +13,44 @@ from Utility import get_vertical_projection
 class Classifier:
     __classifiers = {}
 
-    def load_classifiers(classifiers):
+    def load_classifiers():
+        classifiers = {
+            'meter_other': {
+                'path': 'classifiers/classifier_meter_not_meter',
+                'featureSet': 'hog'
+            },
+            'meter_time': {
+                'path': 'classifiers/classifier_meter',
+                'featureSet': 'hog'
+            },
+            'note_accidental': {
+                'path': 'classifiers/classifier_notes_accidentals',
+                'featureSet': 'hog'
+            },
+            'accidental_kind': {
+                'path': 'classifiers/classifier_accidentals',
+                'featureSet': 'hog'
+            },
+            'note_filled': {
+                'path': 'classifiers/classifier_holes_old',
+                'featureSet': 'hog'
+            },
+            'flagged_note_timing': {
+                'path': 'classifiers/classifier_flags',
+                'featureSet': 'hog'
+            },
+            'hollow_note_timing': {
+                'path': 'classifiers/classifier_hollow',
+                'featureSet': 'image_weight'
+            },
+            'beamed_note_timing': {
+                'path': 'classifiers/classifier_beams',
+                'featureSet': 'weighted_line_peaks'
+                # 'path': 'classifiers/classifier_iterative_skeleton',
+                # 'featureSet': 'iterative_skeleton'
+            },
+        }
+
         for c, cd in classifiers.items():
             Classifier.__classifiers[c] = Classifier(cd['path'], cd['featureSet'])
 

@@ -1,16 +1,18 @@
+import warnings
+from Segmentation import extract_heads, get_number_of_heads, detect_chord, detect_art_dots
+from Display import show_images
+from Component import BaseComponent, Note, Meter, Accidental, Chord
+from Classifier import Classifier
+import Utility
 from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_ELLIPSE, morphologyEx, MORPH_OPEN, MORPH_ERODE, MORPH_CLOSE
 from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk, selem
 from scipy.signal import find_peaks
 from scipy.ndimage.interpolation import rotate
 import numpy as np
 
-import Utility
-from Classifier import Classifier
-from Component import BaseComponent, Note, Meter, Accidental, Chord
-from Display import show_images
-from Segmentation import extract_heads, get_number_of_heads, detect_chord, detect_art_dots
+import sys
+sys.path.append('..')
 
-import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 
@@ -161,7 +163,7 @@ def segment_image(image):
     sanitized, closed = sanitize_sheet(image)
 
     # @note This step needs testing
-    dotMask, _ = detect_art_dots(image, sanitized, staffDim)
+    dotMask, dotBoxes = detect_art_dots(image, sanitized, staffDim)
     closed = np.where(dotMask, False, closed)
 
     # Get base of components from boundingBoxes
@@ -177,7 +179,7 @@ def segment_image(image):
     # Cut beams into notes
     baseComponents = divide_beams(baseComponents, sanitized, staffDim)
 
-    return baseComponents, sanitized, staffDim, lineImage
+    return baseComponents, sanitized, staffDim, lineImage, dotBoxes
 
 
 def sanitize_sheet(image):
@@ -273,7 +275,7 @@ def assign_note_tones(components, image, lineImage, staffDim, originalImage):
 
         head = extract_head(head)
 
-        mid = get_vertical_center_of_gravity(head)
+        mid = Utility.get_vertical_center_of_gravity(head)
         # show_images([originalImage[:, w_slc]])
 
         try:
@@ -387,7 +389,7 @@ def process_chord(chord, image, lineImage, staffDim):
     heads = morphologyEx(heads, MORPH_OPEN, SE_ellipse,
                          borderType=BORDER_CONSTANT, borderValue=0)
 
-    headCenter = get_vertical_center_of_gravity(heads)
+    headCenter = Utility.get_vertical_center_of_gravity(heads)
 
     furthest = 'below'
     if headCenter < chord.height // 2:
@@ -492,7 +494,18 @@ def get_tone(mid, firstLine, staffSpacing, staffThickness):
     return tone
 
 
-def get_vertical_center_of_gravity(image):
-    # Calculate the image's vertical center of gravity
-    avg = np.where(image)[0]
-    return np.average(avg)
+def bind_dots_to_notes(components, dotBoxes):
+    notes = [note for note in components if type(note) is Note]
+
+    for box in dotBoxes:
+        def sq_distance(note):
+            xl, xh, yl, yh = box
+            noteMid = (note.x + note.width//2, note.y + note.height//2)
+            boxMid = ((xl + xh) // 2, (yl + yh) // 2)
+            diff = []
+            for n, b in zip(noteMid, boxMid):
+                diff.append((n-b)*(n-b))
+            return sum(diff)
+
+        closestNote = min(notes, key=sq_distance)
+        closestNote.artdots += '.'

@@ -1,3 +1,9 @@
+import warnings
+from Display import show_images
+from Component import BaseComponent, Note, Meter, Accidental, Chord
+from Segmentation import extract_heads, get_number_of_heads, detect_chord, detect_art_dots
+from Classifier import Classifier
+import Utility
 import numpy as np
 from skimage.morphology import binary_closing, binary_dilation, binary_erosion, binary_opening, disk, selem
 from scipy.signal import find_peaks
@@ -5,13 +11,10 @@ from scipy.ndimage.interpolation import rotate
 from skimage.measure import find_contours
 from cv2 import copyMakeBorder, BORDER_CONSTANT, getStructuringElement, MORPH_ELLIPSE, morphologyEx, MORPH_OPEN, MORPH_ERODE, MORPH_CLOSE
 
-import Utility
-from Classifier import Classifier
-from Segmentation import extract_heads, get_number_of_heads, detect_chord, detect_art_dots
-from Component import BaseComponent, Note, Meter, Accidental, Chord
-from Display import show_images
+import sys
+sys.path.append('..')
 
-import warnings
+
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 
