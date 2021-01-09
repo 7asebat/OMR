@@ -511,3 +511,29 @@ def detect_chord(slc, staffDim):
     numHeads = len(boundingBoxes)
 
     return numHeads > 1
+
+def remove_brace(image):
+    contours = Utility.find_contours(image,0.8)
+    ar=[]
+    boundingBoxes=[]
+
+    for c in contours:
+        xValues = np.round(c[:, 1]).astype(int)
+        yValues = np.round(c[:, 0]).astype(int)
+        box = (xValues.min(), xValues.max(), yValues.min(), yValues.max())
+        dx = xValues.max() - xValues.min()
+        dy = yValues.max() - yValues.min()
+
+        if not dy: dy = 1
+        if(dx != 0):
+            ar.append(dx / dy)
+        boundingBoxes.append(box)
+
+    boxIndex = np.argmin(np.array(ar))
+
+    boxHeight = boundingBoxes[boxIndex][-1] - boundingBoxes[boxIndex][-2] 
+    if(boxHeight >= 0.7*image.shape[0]):
+        xl,xh,yl,yh=boundingBoxes[boxIndex]
+        image[yl:yh,xl:xh]=False
+
+    return image
