@@ -28,7 +28,7 @@ def extract_staff_lines(image):
     length = hHist.max()
     lengthThreshold = 0.85 * hHist.max()
 
-    Utility.visualize_histogram(hHist)
+    # Utility.visualize_histogram(hHist)
     hHist[hHist < lengthThreshold] = 0
 
     for r, val in enumerate(hHist):
@@ -49,23 +49,6 @@ def extract_staff_lines(image):
             run = 0
     width = max(runFreq, key=runFreq.get)
 
-    # Get staff line spacing
-    # Find the space between any two consecutive runs
-    # rows = []
-    # run = False
-    # spacing = -1
-    # for r, val in enumerate(hHist):
-    #     if val:
-    #         run = True
-
-    #     elif run:
-    #         rows.append(r)
-
-    #         if (len(rows) > 1):
-    #             spacing = rows[1] - rows[0]
-    #             break
-
-    #         run = 0
     runs = []
     startRun = 0
     for r, val in enumerate(hHist[:-1]):
@@ -108,8 +91,8 @@ def remove_staff_lines(image, linesOnly, staffDim):
 
     for r, c in linePixels:
         # No connectivity to note
-        # if not is_connected_to_note(r, c, 1) and not is_connected_to_note(r, c, -1):
-        clean[r, c] = False
+        if not is_connected_to_note(r, c, 1) and not is_connected_to_note(r, c, -1):
+            clean[r, c] = False
 
     return clean
 
@@ -225,7 +208,7 @@ def divide_beams(baseComponents, image, staffDim):
 def segment_image(image):
     lineImage, staffDim = extract_staff_lines(image)
 
-    sanitized, _, closed = sanitize_sheet(image)
+    sanitized, closed = sanitize_sheet(image)
 
     # Get base of components from boundingBoxes
     boundingBoxes = Utility.get_bounding_boxes(closed, 0.2)
@@ -241,27 +224,42 @@ def sanitize_sheet(image):
     '''
     @return (Sanitized image, Sanitization mask, Image after closing)
     '''
-    linesOnly, staffDim = extract_staff_lines(image)
+    imageAR = image.shape[1] / image.shape[0]
+    segmentNum = int(np.ceil(imageAR * 5 + 0.5))
+    segmentWidth = image.shape[1] // segmentNum
+    closedNotes = np.copy(image)
 
-    k = np.zeros((3, 3), dtype='uint8')
-    k[:, 3//2:3//2+1] = 1
+    if image.shape[1] % segmentNum:
+        segmentNum += 1
 
-    dilatedLinesOnly = binary_dilation(linesOnly, k)
+    for i in range(segmentNum):
+        slc_w = slice(i*segmentWidth, min((i+1) *
+                                          segmentWidth, image.shape[1]))
+        segment = image[:, slc_w]
+        linesOnly, staffDim = extract_staff_lines(segment)
 
-    # Image - Lines
-    removedLines = remove_staff_lines(image, dilatedLinesOnly, staffDim)
+        k = np.zeros((3, 3), dtype='uint8')
+        k[:, 3//2:3//2+1] = 1
 
-    closedNotes = close_notes(removedLines, staffDim)
+        dilatedLinesOnly = binary_dilation(linesOnly, k)
+
+        # Image - Lines
+        removedLinesSeg = remove_staff_lines(
+            segment, dilatedLinesOnly, staffDim)
+
+        closedNotesSeg = close_notes(removedLinesSeg, staffDim)
+        closedNotes[:, slc_w] = closedNotesSeg
 
     # Clef removal
     vHist = Utility.get_vertical_projection(closedNotes)
-    firstRun = Utility.get_first_run(vHist)
+
+    vHistThresh = vHist.max() * 0.60
+
+    firstRun = Utility.get_first_run(vHist, vHistThresh)
+
     closedNotes[:, firstRun] = 0
 
-    # This step automatically removes barlines
-    masked, mask = Utility.mask_image(closedNotes, removedLines)
-
-    return closedNotes, mask, closedNotes
+    return closedNotes, closedNotes
 
 
 def assign_note_tones(components, image, lineImage, staffDim, originalImage):
@@ -280,10 +278,7 @@ def assign_note_tones(components, image, lineImage, staffDim, originalImage):
             continue
 
         w_slc = slice(note.x-5, note.x+note.width+5)
-        show_images([originalImage[:, w_slc]])
         lineImage, staffDim = extract_staff_lines(originalImage[:, w_slc])
-
-        show_images([lineImage])
 
         staffSpacing = staffDim[2]
         staffThickness = staffDim[0]
@@ -510,12 +505,12 @@ def get_tone(mid, firstLine, staffSpacing, staffThickness):
 
     lineNow = firstLine + staffThickness / 2
 
-    for note in below:
+    for _, _ in enumerate(below):
         below_pos.append(lineNow)
         lineNow += (staffSpacing / 2 + staffThickness / 2)
 
     lineNow = firstLine + staffSpacing / 2
-    for note in above:
+    for _, _ in enumerate(above):
         above_pos.append(lineNow)
         lineNow -= (staffSpacing / 2 + staffThickness / 2)
 

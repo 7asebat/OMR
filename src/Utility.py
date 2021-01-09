@@ -65,8 +65,10 @@ def get_vertical_projection(image):
     return np.array([image[:, col].sum() for col in range(image.shape[1])])
 
 
-def get_vertical_projection_image(hist, shape):
-    histimage = np.zeros(shape)
+def get_vertical_projection_image(image):
+    hist = get_vertical_projection(image)
+
+    histimage = np.zeros((hist.max(), hist.shape[0]), dtype='uint8')
     for c, height in enumerate(hist):
         if height:
             histimage[-height:, c] = True
@@ -138,18 +140,22 @@ def slice_image(image, boundingBoxes):
     return slicedImage
 
 
-def get_first_run(hist):
+def get_first_run(hist, thresh):
     '''
     @return A slice representing the run
     '''
     run = [-1, -1]
+    foundPeak = False
     for p, v in enumerate(hist):
+        if v > thresh:
+            foundPeak = True
+
         if run[0] < 0:
             if v:
                 run[0] = p
 
         else:
-            if not v:
+            if not v and foundPeak:
                 run[1] = p
                 break
 
@@ -162,6 +168,8 @@ def get_base_components(boundingBoxes):
     '''
     baseComponents = []
     for box in boundingBoxes:
+        if box[1] - box[0] < 3 or box[3] - box[2] < 3:
+            continue
         component = BaseComponent(box)
         baseComponents.append(component)
 
@@ -175,11 +183,3 @@ def save_segments(segments):
         if not os.path.exists('samples'):
             os.makedirs('samples')
         imsave(f'samples/beam{i}.jpg', segment)
-
-
-def visualize_histogram(hist):
-    h_hist_img = np.zeros((hist.shape[0], hist.max()), dtype='uint8')
-    for i, val in enumerate(hist):
-        h_hist_img[i, :val] = True
-
-    show_images([h_hist_img])
