@@ -28,13 +28,8 @@ def extract_staff_lines(image):
     length = hHist.max()
     lengthThreshold = 0.85 * hHist.max()
 
+    Utility.visualize_histogram(hHist)
     hHist[hHist < lengthThreshold] = 0
-
-    # h_hist_img = np.zeros((image.shape[0], image.shape[1]), dtype='uint8')
-    # for i, val in enumerate(hHist):
-    #     h_hist_img[i, :val] = True
-
-    # show_images([h_hist_img])
 
     for r, val in enumerate(hHist):
         if not val:

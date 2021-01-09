@@ -6,10 +6,13 @@ from skimage.measure import find_contours
 from skimage.io import imread, imsave
 from skimage.filters import threshold_otsu
 from skimage.color import rgb2gray, rgba2rgb
+from Display import show_images
 
 from Component import BaseComponent
 
 # When provided with the correct format of the list of bounding_boxes, this section will set all pixels inside boxes in image_with_boxes
+
+
 def set_pixels(image, bounding_boxes):
     image_with_boxes = np.copy(image)
     for box in bounding_boxes:
@@ -37,7 +40,8 @@ def get_bounding_boxes(image, lower=0, upper=np.inf):
         dx = xValues.max() - xValues.min()
         dy = yValues.max() - yValues.min()
 
-        if not dy: dy = 1
+        if not dy:
+            dy = 1
         ar = dx / dy
 
         # Filter out barlines
@@ -171,3 +175,11 @@ def save_segments(segments):
         if not os.path.exists('samples'):
             os.makedirs('samples')
         imsave(f'samples/beam{i}.jpg', segment)
+
+
+def visualize_histogram(hist):
+    h_hist_img = np.zeros((hist.shape[0], hist.max()), dtype='uint8')
+    for i, val in enumerate(hist):
+        h_hist_img[i, :val] = True
+
+    show_images([h_hist_img])
