@@ -83,6 +83,7 @@ def close_notes(image, staffDim):
 
 def remove_staff_lines(image, linesOnly, staffDim):
     clean = np.copy(image)
+    linesOnly = binary_dilation(linesOnly, np.ones((3, 3), dtype=np.uint8))
     linePixels = np.argwhere(linesOnly)
 
     def is_connected_to_note(r, c, direction):
@@ -101,6 +102,8 @@ def remove_staff_lines(image, linesOnly, staffDim):
         if not is_connected_to_note(r, c, 1) and not is_connected_to_note(r, c, -1):
             clean[r, c] = False
 
+    # show_images([image, linesOnly, clean], [
+    #             "Original", "Lines Only", "Cleaned"])
     return clean
 
 
@@ -169,10 +172,14 @@ def segment_image(image):
     # Get base of components from boundingBoxes
     boundingBoxes = Utility.get_bounding_boxes(closed, 0.2)
 
-    # for box in boundingBoxes:
-    #     area = (box[1] - box[0]) * (box[3] - box[2])
-    #     if area <= 9:
-    #         boundingBoxes.remove(box)
+    boundingBoxes2 = []
+
+    for i, box in enumerate(boundingBoxes):
+        area = (box[1] - box[0]) * (box[3] - box[2])
+        if area > 500:
+            boundingBoxes2.append(box)
+
+    boundingBoxes = boundingBoxes2
 
     baseComponents = Utility.get_base_components(boundingBoxes)
 
