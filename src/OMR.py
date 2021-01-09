@@ -17,7 +17,8 @@ def demo_segmentation(inputPath):
     Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
 
     for i, group in enumerate(groups):
-        components, sanitized, staffDim, lineImage, _ = Processing.segment_image(group)
+        components, sanitized, staffDim, lineImage, _ = Processing.segment_image(
+            group)
 
         Display.show_images_columns([group, sanitized],
                                     ['Original Image', 'Sanitized'],
@@ -40,9 +41,12 @@ def demo_classification(inputPath):
 
     groups = Processing.split_bars(image)
 
-    print(inputPath, end=':\n\t')
+    output = []
+
+    print(inputPath, end=':\n')
     for group in groups:
-        components, sanitized, staffDim, lineImage, dotBoxes = Processing.segment_image(group)
+        components, sanitized, staffDim, lineImage, dotBoxes = Processing.segment_image(
+            group)
 
         Classifier.assign_components(sanitized, components, staffDim)
 
@@ -50,10 +54,13 @@ def demo_classification(inputPath):
         Processing.bind_accidentals_to_following_notes(components)
         Processing.bind_dots_to_notes(components, dotBoxes)
 
-        Processing.assign_note_tones(components, sanitized, lineImage, staffDim, group)
-        print(Display.get_guido_notation(components), end='\n\t')
+        Processing.assign_note_tones(
+            components, sanitized, lineImage, staffDim, group)
+        output.append(Display.get_guido_notation(components))
 
-    print('\n\n')
+    appendedString = ',\n\n'.join(output)
+    finalOutput = f'{{\n{appendedString}\n}}'
+    print(finalOutput)
 
 
 if __name__ == "__main__":

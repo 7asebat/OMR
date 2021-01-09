@@ -72,8 +72,10 @@ def show_images_columns(images, titles=None, windowTitle=None):
 
 
 def get_guido_notation(components):
-    guido = ''
+    guido = []
     for cmp in components:
-        if str(cmp): guido += f' {cmp}'
+        if str(cmp):
+            guido.append(f'{cmp}')
+    guidostring = ' '.join(guido)
 
-    return f'[{guido} ]'
+    return f'[{guidostring}]'

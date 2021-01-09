@@ -280,37 +280,20 @@ def transformation(image):
     return croppedImage
 
 
-# **Increase the brightness of the image by playing with the "V" value (from HSV)**
-
-def increase_brightness(img, value=30):
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    h, s, v = cv2.split(hsv)
-    lim = 255 - value
-    v[v > lim] = 255
-    v[v <= lim] += value
-    final_hsv = cv2.merge((h, s, v))
-    img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
-    return img
-
-
 # **Sharpen the image using Kernel Sharpening Technique**
 
 
 def final_image(rotated):
-    # Create our shapening kernel, it must equal to one eventually
     kernel_sharpening = np.array([[0, -1, 0],
                                   [-1, 5, -1],
                                   [0, -1, 0]])
-    # applying the sharpening kernel to the input image & displaying it.
+
     sharpened = cv2.filter2D(rotated, -1, kernel_sharpening)
-    # sharpened = increase_brightness(sharpened, 30)
+
     gray = cv2.cvtColor(rotated, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (5, 5), 2)
     _, threshold = cv2.threshold(
         blur, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-
-    # show_images([threshold])
-
     return threshold
 
 
@@ -359,18 +342,15 @@ def fix_orientation(image):
 def read_and_preprocess_image(path):
     image = cv2.imread(path)
     useAugmented = should_rotate(image)
-    print(useAugmented)
     if useAugmented:
         image = fix_orientation(image)
     else:
-        if len(image.shape) > 2:
+        if len(image.shape) == 3:
             if image.shape[2] > 3:
-                image = cv2.cvtColor(image, cv2.COLOR_BGRA2GRAY)
-            else:
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                image = rgba2rgb(image)
+            image = (rgb2gray(image) * 255).astype(np.uint8)
 
-            _, image = cv2.threshold(
-                image, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        image = image < threshold_otsu(image)
 
     # @note Here we remove the first row of the image
     #       until we trim the image
