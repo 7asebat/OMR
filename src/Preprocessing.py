@@ -202,9 +202,9 @@ def fix_rotation(image):
 def should_rotate(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    blur = cv2.GaussianBlur(gray, (5, 5), 2)
+   # blur = cv2.GaussianBlur(gray, (5, 5), 2)
     _, threshold = cv2.threshold(
-        blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
     lines_edges = cv2.Canny(threshold, 50, 150, apertureSize=7)
 
@@ -212,7 +212,7 @@ def should_rotate(image):
     max_index = np.unravel_index(h.argmax(), h.shape)
     degreePeak = np.rad2deg(theta[max_index[1]])
 
-    return not (89 < abs(degreePeak) < 91)
+    return not (88 < abs(degreePeak) < 92)
 
 
 def fix_orientation(image):

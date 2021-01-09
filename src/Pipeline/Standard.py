@@ -262,6 +262,7 @@ def split_bars(image):
     staffSpacing = staffDim[2]
 
     lineRows = np.unique(np.where(lineImage)[0])
+    
     splits = [0]
 
     # Find run spacing larger than staff spacing
@@ -269,7 +270,7 @@ def split_bars(image):
         spacing = lineRows[i+1] - row
 
         # Split at the midpoint
-        if spacing > 8 * staffSpacing:
+        if spacing > 4 * staffSpacing:
             splits.append(row + spacing//2)
 
     splits.append(image.shape[0])
@@ -461,3 +462,31 @@ def get_tone(mid, firstLine, staffSpacing):
     bi = min(distance, len(below)-1)
     ai = min(distance, len(above)-1)
     return below[bi] if mid >= firstLine else above[ai]
+
+
+def remove_brace(image):
+    contours = Utility.find_contours(image, 0.8)
+    ar = []
+    boundingBoxes = []
+
+    for c in contours:
+        xValues = np.round(c[:, 1]).astype(int)
+        yValues = np.round(c[:, 0]).astype(int)
+        box = (xValues.min(), xValues.max(), yValues.min(), yValues.max())
+        dx = xValues.max() - xValues.min()
+        dy = yValues.max() - yValues.min()
+
+        if not dy:
+            dy = 1
+        if(dx != 0):
+            ar.append(dx / dy)
+        boundingBoxes.append(box)
+
+    boxIndex = np.argmin(np.array(ar))
+
+    boxHeight = boundingBoxes[boxIndex][-1] - boundingBoxes[boxIndex][-2]
+    if(boxHeight >= 0.7*image.shape[0]):
+        xl, xh, yl, yh = boundingBoxes[boxIndex]
+        image[yl:yh, xl:xh] = False
+
+    return image

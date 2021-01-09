@@ -291,6 +291,7 @@ def split_bars(image):
     @return A list of images, each containing one bar
     '''
     lineImage, staffDim = extract_staff_lines(image)
+
     staffSpacing = staffDim[2]
 
     lineRows = np.unique(np.where(lineImage)[0])
@@ -509,3 +510,31 @@ def bind_dots_to_notes(components, dotBoxes):
 
         closestNote = min(notes, key=sq_distance)
         closestNote.artdots += '.'
+
+
+def remove_brace(image):
+    contours = Utility.find_contours(image, 0.8)
+    ar = []
+    boundingBoxes = []
+
+    for c in contours:
+        xValues = np.round(c[:, 1]).astype(int)
+        yValues = np.round(c[:, 0]).astype(int)
+        box = (xValues.min(), xValues.max(), yValues.min(), yValues.max())
+        dx = xValues.max() - xValues.min()
+        dy = yValues.max() - yValues.min()
+
+        if not dy:
+            dy = 1
+        if(dx != 0):
+            ar.append(dx / dy)
+        boundingBoxes.append(box)
+
+    boxIndex = np.argmin(np.array(ar))
+
+    boxHeight = boundingBoxes[boxIndex][-1] - boundingBoxes[boxIndex][-2]
+    if(boxHeight >= 0.7*image.shape[0]):
+        xl, xh, yl, yh = boundingBoxes[boxIndex]
+        image[yl:yh, xl:xh] = False
+
+    return image

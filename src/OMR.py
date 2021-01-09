@@ -13,6 +13,8 @@ def demo_segmentation(inputPath):
     image, useAugmented = Preprocessing.read_and_preprocess_image(inputPath)
     Processing = Pipeline.Augmented if useAugmented else Pipeline.Standard
 
+    image = Processing.remove_brace(image)
+
     groups = Processing.split_bars(image)
     Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
 
@@ -38,6 +40,8 @@ def demo_classification(inputPath):
     Processing = Pipeline.Augmented if useAugmented else Pipeline.Standard
 
     Classifier.load_classifiers()
+
+    image = Processing.remove_brace(image)
 
     groups = Processing.split_bars(image)
 
