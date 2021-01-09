@@ -229,7 +229,6 @@ def read_and_preprocess_image(path):
     if useAugmented:
         image = fix_orientation(image)
         image = ~image
-        show_images([image])
     else:
         if len(image.shape) == 3:
             if image.shape[2] > 3:

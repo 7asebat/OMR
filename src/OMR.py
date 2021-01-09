@@ -19,8 +19,7 @@ def demo_segmentation(inputPath):
     Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
 
     for i, group in enumerate(groups):
-        components, sanitized, staffDim, lineImage, _ = Processing.segment_image(
-            group)
+        components, sanitized, staffDim, lineImage, _ = Processing.segment_image(group)
 
         Display.show_images_columns([group, sanitized],
                                     ['Original Image', 'Sanitized'],

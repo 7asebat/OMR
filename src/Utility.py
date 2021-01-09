@@ -84,8 +84,10 @@ def get_horizontal_projection(image):
     return np.array([image[row].sum() for row in range(image.shape[0])])
 
 
-def get_horizontal_projection_image(hist, shape):
-    histimage = np.zeros(shape)
+def get_horizontal_projection_image(image):
+    hist = get_horizontal_projection(image)
+
+    histimage = np.zeros((hist.shape[0], hist.max()))
     for r, width in enumerate(hist):
         if width:
             histimage[r, :width] = True
@@ -113,8 +115,7 @@ def keep_elements_in_ar_range(image, lower, upper):
     for c in contours:
         xValues = np.round(c[:, 1]).astype(int)
         yValues = np.round(c[:, 0]).astype(int)
-        ar = (xValues.max() - xValues.min()) / \
-            (yValues.max() - yValues.min())
+        ar = (xValues.max() - xValues.min()) / (yValues.max() - yValues.min())
 
         if ar < lower or ar > upper:
             rr, cc = rectangle(start=(yValues.min(), xValues.min()), end=(

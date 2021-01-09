@@ -192,8 +192,11 @@ def sanitize_sheet(image):
     closedNotes = close_notes(removedLines, staffDim)
 
     # Clef removal
-
+    # @note Here we remove the minimum nonzero value of the histogram
+    #       in case the entire histogram is lifted over 0
     vHist = Utility.get_vertical_projection(closedNotes)
+    minimumProjection = np.min(vHist[np.nonzero(vHist)])
+    vHist[vHist > 0] -= minimumProjection
 
     firstRun = Utility.get_first_run(vHist)
     while firstRun.stop - firstRun.start < 5:
