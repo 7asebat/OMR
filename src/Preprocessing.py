@@ -103,7 +103,7 @@ def transformation(image):
     image = image.copy()
     originalImage = np.copy(image)
     image = cv2.copyMakeBorder(
-        image, 500, 500, 500, 500, cv2.BORDER_REPLICATE)
+        image, 250, 250, 250, 250, cv2.BORDER_REPLICATE)
     image_size = image.size
 
     ## PREPROCESSING ##
@@ -114,11 +114,6 @@ def transformation(image):
         blur, 0, 255, cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
 
     lines_edges = cv2.Canny(threshold, 50, 150, apertureSize=7)
-
-    if not should_rotate_edge_image(lines_edges):
-        print('Should not process')
-        return originalImage    # show_images([image, threshold, dilate, edges], [
-    #             "Original", "Threshold", "Dilated", "Edges"])
 
     dilate = cv2.dilate(threshold, np.ones(
         (9, 9), np.uint8), iterations=8)
@@ -217,7 +212,7 @@ def should_rotate(image):
     max_index = np.unravel_index(h.argmax(), h.shape)
     degreePeak = np.rad2deg(theta[max_index[1]])
 
-    return not (88 < abs(degreePeak) < 92)
+    return not (89 < abs(degreePeak) < 91)
 
 
 def fix_orientation(image):
@@ -234,6 +229,7 @@ def read_and_preprocess_image(path):
     if useAugmented:
         image = fix_orientation(image)
         image = ~image
+        show_images([image])
     else:
         if len(image.shape) == 3:
             if image.shape[2] > 3:
