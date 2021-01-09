@@ -9,6 +9,7 @@ from skimage.color import rgb2gray, rgba2rgb
 
 from Component import BaseComponent
 
+
 def set_pixels(image, bounding_boxes):
     # When provided with the correct format of the list of bounding_boxes, this section will set all pixels inside boxes in image_with_boxes
     image_with_boxes = np.copy(image)
@@ -20,13 +21,13 @@ def set_pixels(image, bounding_boxes):
     return image_with_boxes
 
 
-def get_bounding_boxes(image, lower=0, upper=np.inf):
+def get_bounding_boxes(image, lower=0, upper=np.inf, takeSubsets=True):
     def is_subset(l, r):
         subset = l[0] >= r[0]
         subset &= l[1] <= r[1]
         subset &= l[2] >= r[2]
         subset &= l[3] <= r[3]
-        return subset
+        return subset and takeSubsets
 
     boundingBoxes = []
     contours = find_contours(image, 0.8)

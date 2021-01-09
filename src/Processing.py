@@ -168,7 +168,7 @@ def extract_solid_heads(image, staffDim, filterAR=True):
 
 def remove_vertical_elements(image, staffDim):
     staffSpacing = staffDim[2]
-    SE_vertical = np.ones((2*staffSpacing, 1), dtype=np.uint8)
+    SE_vertical = np.ones((3*staffSpacing, 1), dtype=np.uint8)
     verticalOnly = morphologyEx(image.astype(np.uint8),
                                 MORPH_OPEN, SE_vertical,
                                 borderType=BORDER_CONSTANT, borderValue=0)
@@ -215,9 +215,9 @@ def fill_and_extract_hollow_heads(image, staffDim, filterAR=True):
 
 def expand_and_mask_notes(image, noteImage, staffDim):
     staffWidth = staffDim[0]
-    RADIUS = staffWidth * 3 - 1
-    WIDTH = 9 * RADIUS
-    HEIGHT = 4 * RADIUS
+    RADIUS = staffWidth * 3
+    WIDTH = 5 * RADIUS
+    HEIGHT = 2 * RADIUS
 
     # Mask image to extract a rectangular window around each note head
     SE_expandNotes = np.ones((2*HEIGHT, 2*WIDTH), dtype=np.uint8)
@@ -616,28 +616,26 @@ def detect_chord(slc, staffDim):
 
 def extract_articulation_dots(image, staffDim):
     '''
-    Takes an image which is sanitized from clefs and staff lines, 
+    Takes an image which is sanitized from clefs and staff lines,
     and returns an image with only the articulation dots
     '''
-    staffWidth = staffDim[0]
+    staffWidth, _, staffSpacing = staffDim
     RADIUS = staffWidth * 3 - 1
 
     # Mask image to extract a rectangular window around each note head
     solidHeads = extract_solid_heads(image, staffDim)
     solidMasked, solidMask = expand_and_mask_notes(image, solidHeads, staffDim)
 
-    # Remove note heads from the masked image, dilate to cover more distance
-    SE_box = np.ones((3*RADIUS, 3*RADIUS), dtype=np.uint8)
-    headsToRemove = morphologyEx(solidHeads,
-                                 MORPH_DILATE, SE_box,
-                                 borderType=BORDER_CONSTANT, borderValue=0)
-    solidMasked = np.where(headsToRemove, False, solidMasked).astype(np.uint8)
-
     # Open to remove noise
+    solidDots = solidMasked.astype(np.uint8)
     SE_circle = getStructuringElement(MORPH_ELLIPSE, (RADIUS, RADIUS))
-    solidDots = morphologyEx(solidMasked,
+    solidDots = morphologyEx(solidDots,
                              MORPH_OPEN, SE_circle,
                              borderType=BORDER_CONSTANT, borderValue=0)
+
+    arRange = (0.7, 1.4)
+    # areaRange = (((staffSpacing // 4) - 1)**2, (staffSpacing // 2)**2)
+    areaRange = ((0.7 * RADIUS)**2, (2 * RADIUS)**2)
 
     # Retain only hollow heads
     hollowOnly = np.where(solidMask, False, image)
@@ -646,70 +644,41 @@ def extract_articulation_dots(image, staffDim):
 
     # Fill and mask image to extract a rectangular window around each note head
     hollowHeads = fill_and_extract_hollow_heads(hollowOnly, staffDim)
+    hollowOnly = np.where(hollowHeads, True, hollowOnly)  # Include filled heads
     hollowMasked, hollowMask = expand_and_mask_notes(hollowOnly, hollowHeads, staffDim)
-    # show_images_columns([image, hollowOnly, hollowMasked],
-    #                     ['image', 'hollowOnly', 'hollowMasked'])
-
-    # Remove filled heads from the masked image, dilate to cover more distance
-    SE_box = np.ones((3*RADIUS, 3*RADIUS), dtype=np.uint8)
-    headsToRemove = morphologyEx(hollowHeads,
-                                 MORPH_DILATE, SE_box,
-                                 borderType=BORDER_CONSTANT, borderValue=0)
-    hollowMasked = np.where(headsToRemove, False, hollowMasked).astype(np.uint8)
-    # show_images_columns([image, headsToRemove, hollowMasked],
-    #                     ['image', 'headsToRemove', 'hollowMasked'])
 
     # Open to remove noise
+    hollowDots = hollowMasked.astype(np.uint8)
     SE_circle = getStructuringElement(MORPH_ELLIPSE, (RADIUS, RADIUS))
-    hollowDots = morphologyEx(hollowMasked,
+    hollowDots = morphologyEx(hollowDots,
                               MORPH_OPEN, SE_circle,
                               borderType=BORDER_CONSTANT, borderValue=0)
 
-    show_images_columns([image, solidDots, hollowDots],
-                        ['image', 'solidDots', 'hollowDots'])
+    # show_images_columns([image, solidMasked, hollowMasked],
+    #                     ['image', 'solidMasked', 'hollowMasked'])
+    # show_images_columns([image, solidDots, hollowDots],
+    #                     ['image', 'solidDots', 'hollowDots'])
+
+    solidDots = keep_elements_in_range(solidDots, area=areaRange)
+    hollowDots = keep_elements_in_range(hollowDots, area=areaRange)
+
+    # show_images_columns([image, solidDots, hollowDots],
+    #                     ['image', 'solidDots', 'hollowDots'])
+
     return solidDots | hollowDots
-    # # Close accidentals
-    # RADIUS = staffWidth * 3
-    # SE_dots = np.ones((2*RADIUS, RADIUS), dtype=np.uint8)
-    # artdots = morphologyEx(artdots,
-    #                        MORPH_CLOSE, SE_dots,
-    #                        borderType=BORDER_CONSTANT, borderValue=0)
-    # show_images_columns([sanitized, artdots],
-    #                     ['sanitized', 'artdots: Close accidentals'])
 
-    # # Open to keep dots
-    # RADIUS = staffWidth * 3
-    # SE_circle = getStructuringElement(MORPH_ELLIPSE, (RADIUS, RADIUS))
-    # artdots = morphologyEx(artdots, MORPH_OPEN, SE_circle,
-    #                        borderType=BORDER_CONSTANT, borderValue=0)
-    # show_images_columns([sanitized, artdots],
-    #                     ['sanitized', 'artdots: Opening'])
 
-    # # Threshold large elements
-    # def slc(box): return (slice(box[2], box[3]), slice(box[0], box[1]))
-    # def get_area(box): return (box[3] - box[2]) * (box[1] - box[0])
-    # areaThreshold = 5 * RADIUS * RADIUS
+def keep_elements_in_range(image, area=(0, np.inf), ar=(0, np.inf)):
+    min_ar, max_ar = ar
+    min_area, max_area = area
+    boxes = Utility.get_bounding_boxes(image, min_ar, max_ar, takeSubsets=False)
 
-    # boxes = Utility.get_bounding_boxes(artdots)
-    # for box in boxes:
-    #     if get_area(box) > areaThreshold:
-    #         artdots[slc(box)] = False
-    #     else:
-    #         print(get_area(box), RADIUS)
+    filtered = np.zeros(image.shape, dtype=np.uint8)
 
-    # artdots = morphologyEx(artdots, MORPH_OPEN, SE_circle,
-    #                        borderType=BORDER_CONSTANT, borderValue=0)
-    # show_images_columns([sanitized, artdots],
-    #                     ['sanitized', 'artdots: Thresholding'])
+    for xl, xh, yl, yh in boxes:
+        area = (xh-xl)*(yh-yl)
+        if min_area <= area <= max_area:
+            slc = (slice(yl, yh), slice(xl, xh))
+            filtered[slc] = 1
 
-    # # Dilate to cover two articulation dots
-    # SE_dots = np.ones((RADIUS, 3*RADIUS), dtype=np.uint8)
-    # SE_dots[:, :RADIUS] = 0
-    # artdots = morphologyEx(artdots, MORPH_DILATE, SE_dots,
-    #                        borderType=BORDER_CONSTANT, borderValue=0)
-    # show_images_columns([sanitized, artdots],
-    #                     ['sanitized', 'artdots: Dilation'])
-    # boxes = Utility.get_bounding_boxes(artdots)
-    # artdots, _ = Utility.mask_image(sanitized, boxes)
-
-    # return artdots
+    return filtered
