@@ -43,7 +43,10 @@ class Note(BaseComponent):
         self.artdots = ''
 
     def __repr__(self):
-        return f'{self.tone[0]}{self.accidental}{self.tone[1:]}/{self.timing}{self.artdots}'
+        t1 = 'None' if self.tone is None else self.tone[0]
+        t2 = '' if self.tone is None else self.tone[1:]
+
+        return f'{t1}{self.accidental}{t2}/{self.timing}{self.artdots}'
 
     def get_details(self):
         return f'<Note {self.pos} beamed: {self.beamed}, filled: {self.filled}, timing: {self.timing}, tone: {self.tone}>'

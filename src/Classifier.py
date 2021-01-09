@@ -9,6 +9,7 @@ from Component import BaseComponent, Meter, Note, Accidental, Chord
 import Processing
 #from Processing import extract_heads, get_number_of_heads, detect_chord
 from Utility import get_vertical_projection
+import Display
 
 
 class Classifier:

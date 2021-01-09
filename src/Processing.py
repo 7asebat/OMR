@@ -20,13 +20,22 @@ def extract_staff_lines(image):
     # Staff lines using a horizontal histogram
     # Get staff line length
     # Threshold image based on said length
+
     linesOnly = np.copy(image)
 
     hHist = Utility.get_horizontal_projection(image)
+
     length = hHist.max()
     lengthThreshold = 0.85 * hHist.max()
 
     hHist[hHist < lengthThreshold] = 0
+
+    # h_hist_img = np.zeros((image.shape[0], image.shape[1]), dtype='uint8')
+    # for i, val in enumerate(hHist):
+    #     h_hist_img[i, :val] = True
+
+    # show_images([h_hist_img])
+
     for r, val in enumerate(hHist):
         if not val:
             linesOnly[r] = 0
@@ -47,21 +56,31 @@ def extract_staff_lines(image):
 
     # Get staff line spacing
     # Find the space between any two consecutive runs
-    rows = []
-    run = False
-    spacing = -1
-    for r, val in enumerate(hHist):
-        if val:
-            run = True
+    # rows = []
+    # run = False
+    # spacing = -1
+    # for r, val in enumerate(hHist):
+    #     if val:
+    #         run = True
 
-        elif run:
-            rows.append(r)
+    #     elif run:
+    #         rows.append(r)
 
-            if (len(rows) > 1):
-                spacing = rows[1] - rows[0]
-                break
+    #         if (len(rows) > 1):
+    #             spacing = rows[1] - rows[0]
+    #             break
 
-            run = 0
+    #         run = 0
+    runs = []
+    startRun = 0
+    for r, val in enumerate(hHist[:-1]):
+        if hHist[r] == 0 and hHist[r+1] > 0:
+            endRun = r+1 - startRun
+            runs.append(endRun)
+        elif hHist[r] > 0 and hHist[r+1] == 0:
+            startRun = r
+
+    spacing = int(np.median(runs))
 
     return linesOnly, (width, length, spacing)
 
@@ -94,8 +113,8 @@ def remove_staff_lines(image, linesOnly, staffDim):
 
     for r, c in linePixels:
         # No connectivity to note
-        if not is_connected_to_note(r, c, 1) and not is_connected_to_note(r, c, -1):
-            clean[r, c] = False
+        # if not is_connected_to_note(r, c, 1) and not is_connected_to_note(r, c, -1):
+        clean[r, c] = False
 
     return clean
 
@@ -210,6 +229,7 @@ def divide_beams(baseComponents, image, staffDim):
 
 def segment_image(image):
     lineImage, staffDim = extract_staff_lines(image)
+
     sanitized, _, closed = sanitize_sheet(image)
 
     # Get base of components from boundingBoxes
@@ -228,8 +248,14 @@ def sanitize_sheet(image):
     '''
     linesOnly, staffDim = extract_staff_lines(image)
 
+    k = np.zeros((3, 3), dtype='uint8')
+    k[:, 3//2:3//2+1] = 1
+
+    dilatedLinesOnly = binary_dilation(linesOnly, k)
+
     # Image - Lines
-    removedLines = remove_staff_lines(image, linesOnly, staffDim)
+    removedLines = remove_staff_lines(image, dilatedLinesOnly, staffDim)
+
     closedNotes = close_notes(removedLines, staffDim)
 
     # Clef removal
@@ -240,10 +266,10 @@ def sanitize_sheet(image):
     # This step automatically removes barlines
     masked, mask = Utility.mask_image(closedNotes, removedLines)
 
-    return masked, mask, closedNotes
+    return closedNotes, mask, closedNotes
 
 
-def assign_note_tones(components, image, lineImage, staffDim):
+def assign_note_tones(components, image, lineImage, staffDim, originalImage):
     '''
     Logs how far the note head's box is from the first line,
     and whether it's over or under it.
@@ -258,7 +284,14 @@ def assign_note_tones(components, image, lineImage, staffDim):
             note = process_chord(note, image, lineImage, staffDim)
             continue
 
+        w_slc = slice(note.x-5, note.x+note.width+5)
+        show_images([originalImage[:, w_slc]])
+        lineImage, staffDim = extract_staff_lines(originalImage[:, w_slc])
+
+        show_images([lineImage])
+
         staffSpacing = staffDim[2]
+        staffThickness = staffDim[0]
         firstLine = np.argmax(lineImage) // lineImage.shape[1]
 
         def extract_head(image):
@@ -291,7 +324,7 @@ def assign_note_tones(components, image, lineImage, staffDim):
 
         try:
             mid += note.y
-            note.tone = get_tone(mid, firstLine, staffSpacing)
+            note.tone = get_tone(mid, firstLine, staffSpacing, staffThickness)
 
         except Exception as e:
             print(e, end='\n\t')
@@ -410,7 +443,7 @@ def process_chord(chord, image, lineImage, staffDim):
     for _, _, yl, yh in boxes:
         mid = (yh + yl) // 2
         mid += chord.y
-        tones.append(get_tone(mid, firstLine, staffSpacing))
+        tones.append(get_tone(mid, firstLine, staffSpacing, staff))
 
     chord.tones = tones
     chord.tones.sort()
@@ -470,19 +503,36 @@ def process_chord(chord, image, lineImage, staffDim):
     return chord
 
 
-def get_tone(mid, firstLine, staffSpacing):
+def get_tone(mid, firstLine, staffSpacing, staffThickness):
     below = ['f2', 'e2', 'd2', 'c2', 'b1', 'a1', 'g1', 'f1', 'e1', 'd1', 'c1']
     above = ['f2', 'g2', 'a2', 'b2']
 
-    distance = abs(mid - firstLine)
-    distance /= staffSpacing / 2
-    distance = int(distance + 0.5)
+    below = ['f2', 'e2', 'd2', 'c2', 'b1', 'a1', 'g1', 'f1', 'e1', 'd1', 'c1']
+    below_pos = []
 
-    # @note This is a hacky fix which assumes that ONLY `c, b2` notes
-    # are sometimes further than their standard distance
-    bi = min(distance, len(below)-1)
-    ai = min(distance, len(above)-1)
-    return below[bi] if mid >= firstLine else above[ai]
+    above = ['f2', 'g2', 'a2', 'b2']
+    above_pos = []
+
+    lineNow = firstLine + staffThickness / 2
+
+    for note in below:
+        below_pos.append(lineNow)
+        lineNow += (staffSpacing / 2 + staffThickness / 2)
+
+    lineNow = firstLine + staffSpacing / 2
+    for note in above:
+        above_pos.append(lineNow)
+        lineNow -= (staffSpacing / 2 + staffThickness / 2)
+
+    tone = ''
+    if mid > firstLine:
+        idx = (np.abs(below_pos - mid)).argmin()
+        tone = below[idx]
+    else:
+        idx = (np.abs(above_pos - mid)).argmin()
+        tone = above[idx]
+
+    return tone
 
 
 def get_vertical_center_of_gravity(image):

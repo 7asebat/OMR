@@ -101,6 +101,9 @@ def demo_classification(inputPath):
     })
 
     image = Utility.read_and_threshold_image(inputPath)
+
+    image = image[1:, :]
+
     groups = Processing.split_bars(image)
 
     print(inputPath, end=':\n\t')
@@ -109,11 +112,12 @@ def demo_classification(inputPath):
             group)
 
         Classifier.assign_components(sanitized, components, staffDim)
+
         Processing.join_meters(components)
         Processing.bind_accidentals_to_following_notes(components)
 
         Processing.assign_note_tones(
-            components, sanitized, lineImage, staffDim)
+            components, sanitized, lineImage, staffDim, image)
         print(Display.get_guido_notation(components), end='\n\t')
 
         #demo_chord(components[1], sanitized, lineImage, staffDim)
