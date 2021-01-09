@@ -23,7 +23,7 @@ def set_pixels(image, bounding_boxes):
     return image_with_boxes
 
 
-def get_bounding_boxes(image, lower=0, upper=np.inf):
+def get_bounding_boxes(image, lower=0, upper=np.inf, filterSubsets=True):
     def is_subset(l, r):
         subset = l[0] >= r[0]
         subset &= l[1] <= r[1]
@@ -47,15 +47,19 @@ def get_bounding_boxes(image, lower=0, upper=np.inf):
         # Filter out barlines
         # Keep larger bounding box
         # Filter overlapping bounding boxes
-        insertNew = True
-        if lower <= ar <= upper:
-            for x in boundingBoxes:
-                if is_subset(x, box):
-                    boundingBoxes.remove(x)
-                elif is_subset(box, x):
-                    insertNew = False
+        if filterSubsets:
+            insertNew = True
+            if lower <= ar <= upper:
+                for x in boundingBoxes:
+                    if is_subset(x, box):
+                        boundingBoxes.remove(x)
+                    elif is_subset(box, x):
+                        insertNew = False
 
-            if insertNew:
+                if insertNew:
+                    boundingBoxes.append(box)
+        else:
+            if lower <= ar <= upper:
                 boundingBoxes.append(box)
 
     return boundingBoxes
@@ -140,7 +144,7 @@ def slice_image(image, boundingBoxes):
     return slicedImage
 
 
-def get_first_run(hist, thresh):
+def get_first_run(hist, thresh=0):
     '''
     @return A slice representing the run
     '''
