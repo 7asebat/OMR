@@ -191,10 +191,19 @@ def sanitize_sheet(image):
     removedLines = remove_staff_lines(image, linesOnly, staffDim)
     closedNotes = close_notes(removedLines, staffDim)
 
+
     # Clef removal
+
     vHist = Utility.get_vertical_projection(closedNotes)
+
     firstRun = Utility.get_first_run(vHist)
+    while firstRun.stop - firstRun.start < 5:
+        closedNotes[:, firstRun] = 0
+        vHist[firstRun] = 0
+        firstRun = Utility.get_first_run(vHist)
+
     closedNotes[:, firstRun] = 0
+    vHist[firstRun] = 0
 
     # This step automatically removes barlines
     masked, _ = Utility.mask_image(closedNotes, removedLines)
