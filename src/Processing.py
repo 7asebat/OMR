@@ -21,6 +21,9 @@ def extract_staff_lines(image):
     # Get staff line length
     # Threshold image based on said length
 
+    if(image.max() == 0):
+        return image, (0, 0, 0)
+
     linesOnly = np.copy(image)
 
     hHist = Utility.get_horizontal_projection(image)
@@ -38,6 +41,7 @@ def extract_staff_lines(image):
     # > Get staff line width
     run = 0
     runFreq = {}
+
     for val in hHist:
         if val:
             run += 1
@@ -212,6 +216,12 @@ def segment_image(image):
 
     # Get base of components from boundingBoxes
     boundingBoxes = Utility.get_bounding_boxes(closed, 0.2)
+
+    # for box in boundingBoxes:
+    #     area = (box[1] - box[0]) * (box[3] - box[2])
+    #     if area <= 9:
+    #         boundingBoxes.remove(box)
+
     baseComponents = Utility.get_base_components(boundingBoxes)
 
     # Cut beams into notes
@@ -227,7 +237,8 @@ def sanitize_sheet(image):
     imageAR = image.shape[1] / image.shape[0]
     segmentNum = int(np.ceil(imageAR * 5 + 0.5))
     segmentWidth = image.shape[1] // segmentNum
-    closedNotes = np.copy(image)
+    processedImage = np.copy(image)
+    closedImage = np.copy(image)
 
     if image.shape[1] % segmentNum:
         segmentNum += 1
@@ -236,6 +247,7 @@ def sanitize_sheet(image):
         slc_w = slice(i*segmentWidth, min((i+1) *
                                           segmentWidth, image.shape[1]))
         segment = image[:, slc_w]
+
         linesOnly, staffDim = extract_staff_lines(segment)
 
         k = np.zeros((3, 3), dtype='uint8')
@@ -247,19 +259,21 @@ def sanitize_sheet(image):
         removedLinesSeg = remove_staff_lines(
             segment, dilatedLinesOnly, staffDim)
 
+        processedImage[:, slc_w] = removedLinesSeg
         closedNotesSeg = close_notes(removedLinesSeg, staffDim)
-        closedNotes[:, slc_w] = closedNotesSeg
+        closedImage[:, slc_w] = closedNotesSeg
 
     # Clef removal
-    vHist = Utility.get_vertical_projection(closedNotes)
+    vHist = Utility.get_vertical_projection(processedImage)
 
     vHistThresh = vHist.max() * 0.60
 
     firstRun = Utility.get_first_run(vHist, vHistThresh)
 
-    closedNotes[:, firstRun] = 0
+    processedImage[:, firstRun] = 0
+    closedImage[:, firstRun] = 0
 
-    return closedNotes, closedNotes
+    return processedImage, closedImage
 
 
 def assign_note_tones(components, image, lineImage, staffDim, originalImage):
@@ -300,6 +314,7 @@ def assign_note_tones(components, image, lineImage, staffDim, originalImage):
             return head
 
         head = np.copy(image[note.slice])
+
         # @note False classification of filled notes results in
         # unneccessary closing
         if not note.filled:
@@ -311,6 +326,7 @@ def assign_note_tones(components, image, lineImage, staffDim, originalImage):
         head = extract_head(head)
 
         mid = get_vertical_center_of_gravity(head)
+        # show_images([originalImage[:, w_slc]])
 
         try:
             mid += note.y
@@ -404,6 +420,7 @@ def bind_accidentals_to_following_notes(components):
 
 def process_chord(chord, image, lineImage, staffDim):
     staffSpacing = staffDim[2]
+    staffThickness = staffDim[0]
     firstLine = np.argmax(lineImage) // lineImage.shape[1]
 
     # Extract heads
@@ -433,7 +450,7 @@ def process_chord(chord, image, lineImage, staffDim):
     for _, _, yl, yh in boxes:
         mid = (yh + yl) // 2
         mid += chord.y
-        tones.append(get_tone(mid, firstLine, staffSpacing, staff))
+        tones.append(get_tone(mid, firstLine, staffSpacing, staffThickness))
 
     chord.tones = tones
     chord.tones.sort()
@@ -504,6 +521,8 @@ def get_tone(mid, firstLine, staffSpacing, staffThickness):
     above_pos = []
 
     lineNow = firstLine + staffThickness / 2
+
+    # print(mid, firstLine, staffSpacing, staffThickness)
 
     for _, _ in enumerate(below):
         below_pos.append(lineNow)

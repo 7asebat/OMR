@@ -42,6 +42,8 @@ from Component import Note
 def demo_segmentation(inputPath):
     image = Utility.read_and_threshold_image(inputPath)
 
+    image = image[1:, :]
+
     groups = Processing.split_bars(image)
     Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
 
@@ -117,7 +119,7 @@ def demo_classification(inputPath):
         Processing.bind_accidentals_to_following_notes(components)
 
         Processing.assign_note_tones(
-            components, sanitized, lineImage, staffDim, image)
+            components, sanitized, lineImage, staffDim, group)
         print(Display.get_guido_notation(components), end='\n\t')
 
         #demo_chord(components[1], sanitized, lineImage, staffDim)
