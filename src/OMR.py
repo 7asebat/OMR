@@ -26,7 +26,7 @@ def demo_segmentation(inputPath):
                                     ['Original Image', 'Sanitized Image', 'Note heads', 'Articulation dots'],
                                     f'Group #{i}')
 
-        Display.show_images([sanitized[cmp.slice] for cmp in components])
+        # Display.show_images([sanitized[cmp.slice] for cmp in components])
 
 
 def demo_classification(inputPath):

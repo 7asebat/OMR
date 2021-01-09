@@ -638,7 +638,10 @@ def extract_articulation_dots(image, staffDim):
     areaRange = ((0.7 * RADIUS)**2, (2 * RADIUS)**2)
 
     # Retain only hollow heads
-    hollowOnly = np.where(solidMask, False, image)
+    solidMaskBoxes = Utility.get_bounding_boxes(solidMask)
+    hollowOnly = np.copy(image)
+    for xl, xh, _, _ in solidMaskBoxes:
+        hollowOnly[:, xl:xh] = 0
     hollowOnly = binary_opening(hollowOnly).astype(np.uint8)
     hollowOnly = remove_vertical_elements(hollowOnly, staffDim)
 
