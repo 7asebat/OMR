@@ -1,9 +1,4 @@
 import pickle
-# from sklearn.model_selection import train_test_split
-# from sklearn.neighbors import KNeighborsClassifier
-# from sklearn.neural_network import MLPClassifier  # MLP is an NN
-# from sklearn.svm import LinearSVC
-
 from FeatureExtractor import FeatureExtractor
 from Component import BaseComponent, Meter, Note, Accidental, Chord
 from Segmentation import detect_chord, extract_heads, get_number_of_heads
@@ -13,41 +8,39 @@ from Utility import get_vertical_projection
 class Classifier:
     __classifiers = {}
 
-    def load_classifiers():
+    def load_classifiers(classifiersPath):
         classifiers = {
             'meter_other': {
-                'path': 'classifiers/classifier_meter_not_meter',
+                'path': f'{classifiersPath}/classifier_meter_not_meter',
                 'featureSet': 'hog'
             },
             'meter_time': {
-                'path': 'classifiers/classifier_meter',
+                'path': f'{classifiersPath}/classifier_meter',
                 'featureSet': 'hog'
             },
             'note_accidental': {
-                'path': 'classifiers/classifier_notes_accidentals',
+                'path': f'{classifiersPath}/classifier_notes_accidentals',
                 'featureSet': 'hog'
             },
             'accidental_kind': {
-                'path': 'classifiers/classifier_accidentals',
+                'path': f'{classifiersPath}/classifier_accidentals',
                 'featureSet': 'hog'
             },
             'note_filled': {
-                'path': 'classifiers/classifier_holes_old',
+                'path': f'{classifiersPath}/classifier_holes_old',
                 'featureSet': 'hog'
             },
             'flagged_note_timing': {
-                'path': 'classifiers/classifier_flags',
+                'path': f'{classifiersPath}/classifier_flags',
                 'featureSet': 'hog'
             },
             'hollow_note_timing': {
-                'path': 'classifiers/classifier_hollow',
+                'path': f'{classifiersPath}/classifier_hollow',
                 'featureSet': 'image_weight'
             },
             'beamed_note_timing': {
-                'path': 'classifiers/classifier_beams',
+                'path': f'{classifiersPath}/classifier_beams',
                 'featureSet': 'weighted_line_peaks'
-                # 'path': 'classifiers/classifier_iterative_skeleton',
-                # 'featureSet': 'iterative_skeleton'
             },
         }
 
@@ -106,8 +99,6 @@ class Classifier:
 
     def assign_note_filled(image, note, staffDim):
         slc = image[note.slice]
-        # clf = Classifier.__classifiers['note_filled']
-        # note.filled = clf.extract_and_predict(slc)[0] == 'filled'
 
         heads = extract_heads(slc, staffDim, filterAR=False)
         vHist = get_vertical_projection(heads) > 0
@@ -116,7 +107,6 @@ class Classifier:
             note.filled = True
 
         if note.filled:
-            # @todo Insert chorded note classification
             Classifier.assign_flagged_note_timing(image, note)
 
         else:
