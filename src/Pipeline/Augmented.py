@@ -65,13 +65,12 @@ def segment_image(image):
     closed = np.where(dotMask, False, closed)
 
     # Get base of components from boundingBoxes
-    boundingBoxes = Utility.get_bounding_boxes(closed, 0.2)
+    boundingBoxes = Utility.get_bounding_boxes(closed, 0.2, 4)
 
     boundingBoxes2 = []
-
     for i, box in enumerate(boundingBoxes):
         area = (box[1] - box[0]) * (box[3] - box[2])
-        if area > 500:
+        if area > ((staffDim[2] ** 2)):
             boundingBoxes2.append(box)
 
     boundingBoxes = boundingBoxes2
