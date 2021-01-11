@@ -1,15 +1,13 @@
-import sys
-
-import Utility
-import Display
-import Dataset
-import Preprocessing
-import Pipeline.Standard
-import Pipeline.Augmented
 from Classifier import Classifier
-
+import Pipeline.Augmented
+import Pipeline.Standard
+import Preprocessing
+import Dataset
+import Display
+import Utility
+import sys
 import warnings
-warnings.filterwarnings('ignore', category=RuntimeWarning)
+warnings.filterwarnings('ignore')
 
 
 def run_OMR(inputPath, classifiersPath):

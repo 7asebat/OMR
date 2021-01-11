@@ -33,8 +33,12 @@ for filename in os.listdir(args.inputfolder):
         if args.verbose:
             print(f'ERROR    {e}')
 
-    output = ',\n\n'.join(output)
-    output = f'{{\n{output}\n}}'
+    if len(output) > 1:
+        output = ',\n'.join(output)
+        output = f'{{\n{output}\n}}'
+    else:
+        output = output[0]
+
     outputPath = os.path.join(args.outputfolder, f'{basename}.txt')
     with open(outputPath, "w") as text_file:
         text_file.write(output)

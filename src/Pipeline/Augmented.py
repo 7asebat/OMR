@@ -87,7 +87,7 @@ def sanitize_sheet(image):
     @return (Sanitized image, Closed image)
     '''
     imageAR = image.shape[1] / image.shape[0]
-    segmentNum = int(np.ceil(imageAR * 5 + 0.5))
+    segmentNum = int(np.ceil(imageAR * 6 + 0.5))
     segmentWidth = image.shape[1] // segmentNum
     processedImage = np.copy(image)
     closedImage = np.copy(image)

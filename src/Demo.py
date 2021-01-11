@@ -15,7 +15,8 @@ def demo_segmentation(inputPath):
 
     image = Processing.remove_brace(image)
 
-    groups = Processing.split_bars(image)
+    lineImage, staffDim = Processing.extract_staff_lines(image)
+    groups = Processing.split_bars(image, lineImage, staffDim)
     Display.show_images(groups, [f'Group #{i}' for i in range(len(groups))])
 
     for i, group in enumerate(groups):
