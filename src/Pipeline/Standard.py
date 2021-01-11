@@ -1,6 +1,60 @@
 from Pipeline.Common import *
 
 
+def extract_staff_lines(image):
+    '''
+    @return (LineImage, (width, length, spacing))
+    '''
+    # Staff lines using a horizontal histogram
+    # Get staff line length
+    # Threshold image based on said length
+    linesOnly = np.copy(image)
+
+    hHist = Utility.get_horizontal_projection(image)
+
+    length = hHist.max()
+    lengthThreshold = 0.85 * hHist.max()
+
+    hHist[hHist < lengthThreshold] = 0
+    for r, val in enumerate(hHist):
+        if not val:
+            linesOnly[r] = 0
+
+    # > Get staff line width
+    run = 0
+    runFreq = {}
+    for val in hHist:
+        if val:
+            run += 1
+        elif run:
+            if run in runFreq:
+                runFreq[run] += 1
+            else:
+                runFreq[run] = 1
+            run = 0
+    width = max(runFreq, key=runFreq.get)
+
+    # Get staff line spacing
+    # Find the space between any two consecutive runs
+    rows = []
+    run = False
+    spacing = -1
+    for r, val in enumerate(hHist):
+        if val:
+            run = True
+
+        elif run:
+            rows.append(r)
+
+            if (len(rows) > 1):
+                spacing = rows[1] - rows[0]
+                break
+
+            run = 0
+
+    return linesOnly, (width, length, spacing)
+
+
 def segment_image(image):
     lineImage, staffDim = extract_staff_lines(image)
     sanitized, closed = sanitize_sheet(image)

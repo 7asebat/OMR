@@ -18,7 +18,8 @@ def run_OMR(inputPath, classifiersPath):
 
     Classifier.load_classifiers(classifiersPath)
     image = Processing.remove_brace(image)
-    groups = Processing.split_bars(image)
+    lineImage, staffDim = Processing.extract_staff_lines(image)
+    groups = Processing.split_bars(image, lineImage, staffDim)
 
     output = []
     for group in groups:

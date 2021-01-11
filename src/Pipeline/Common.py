@@ -91,11 +91,10 @@ def divide_component(c, vHist):
     return divisions
 
 
-def split_bars(image):
+def split_bars(image, lineImage, staffDim):
     '''
     @return A list of images, each containing one bar
     '''
-    lineImage, staffDim = extract_staff_lines(image)
 
     staffSpacing = staffDim[2]
 
@@ -107,7 +106,7 @@ def split_bars(image):
         spacing = lineRows[i+1] - row
 
         # Split at the midpoint
-        if spacing > 8 * staffSpacing:
+        if spacing > 4 * staffSpacing:
             splits.append(row + spacing//2)
 
     splits.append(image.shape[0])
@@ -211,56 +210,6 @@ def remove_brace(image):
         image[yl:yh, xl:xh] = False
 
     return image
-
-
-def extract_staff_lines(image):
-    '''
-    @return (LineImage, (width, length, spacing))
-    '''
-    if not image.max():
-        return image, (0, 0, 0)
-
-    # Staff lines using a horizontal histogram
-    # Get staff line length
-    # Threshold image based on said length
-    linesOnly = np.copy(image)
-
-    hHist = Utility.get_horizontal_projection(image)
-    length = hHist.max()
-    lengthThreshold = 0.85 * hHist.max()
-
-    hHist[hHist < lengthThreshold] = 0
-    for r, val in enumerate(hHist):
-        if not val:
-            linesOnly[r] = 0
-
-    # Get staff line width
-    # @todo Replace this with median of runs
-    run = 0
-    runFreq = {}
-    for val in hHist:
-        if val:
-            run += 1
-        elif run:
-            if run in runFreq:
-                runFreq[run] += 1
-            else:
-                runFreq[run] = 1
-            run = 0
-    width = max(runFreq, key=runFreq.get)
-
-    runs = []
-    startRun = 0
-    for r, val in enumerate(hHist[:-1]):
-        if hHist[r] == 0 and hHist[r+1] > 0:
-            endRun = r+1 - startRun
-            runs.append(endRun)
-        elif hHist[r] > 0 and hHist[r+1] == 0:
-            startRun = r
-
-    spacing = int(np.median(runs))
-
-    return linesOnly, (width, length, spacing)
 
 
 def divide_beams(baseComponents, image, staffDim):

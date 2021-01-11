@@ -35,7 +35,7 @@ def demo_segmentation(inputPath):
 
 
 def demo_classification(inputPath):
-    output = run_OMR(inputPath, './classifiers')
+    output = run_OMR(inputPath, './src/classifiers')
     print(inputPath, end=':\n')
     output = ',\n\n'.join(output)
     output = f'{{\n{output}\n}}'

@@ -15,7 +15,7 @@
       "name": "Debug project",
       "type": "python",
       "request": "launch",
-      "program": "${workspaceFolder}/src/OMR.py",
+      "program": "${workspaceFolder}/src/Demo.py",
       "args": [
         "${workspaceFolder}/${input:testcase}"
       ],
@@ -25,7 +25,7 @@
       "name": "Debug project: Segmentation",
       "type": "python",
       "request": "launch",
-      "program": "${workspaceFolder}/src/OMR.py",
+      "program": "${workspaceFolder}/src/Demo.py",
       "args": [
         "s",
         "${workspaceFolder}/${input:testcase}"
