@@ -8,6 +8,9 @@ import Pipeline.Standard
 import Pipeline.Augmented
 from Classifier import Classifier
 
+import warnings
+warnings.filterwarnings('ignore', category=RuntimeWarning)
+
 
 def run_OMR(inputPath, classifiersPath):
     image, useAugmented = Preprocessing.read_and_preprocess_image(inputPath)

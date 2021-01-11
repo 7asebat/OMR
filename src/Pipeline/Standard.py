@@ -94,12 +94,8 @@ def assign_note_tones(components, image, lineImage, staffDim, originalImage):
 
         mid = Utility.get_vertical_center_of_gravity(head)
 
-        try:
-            mid += note.y
-            note.tone = get_tone(mid, firstLine, staffSpacing)
-
-        except Exception as e:
-            print(e, end='\n\t')
+        mid += note.y
+        note.tone = get_tone(mid, firstLine, staffSpacing)
 
 
 def bind_accidentals_to_following_notes(components):

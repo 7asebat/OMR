@@ -1,4 +1,3 @@
-import warnings
 from Display import show_images
 from Component import BaseComponent, Note, Meter, Accidental, Chord
 from Segmentation import extract_heads, get_number_of_heads, detect_chord, detect_art_dots

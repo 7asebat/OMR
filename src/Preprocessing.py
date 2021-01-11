@@ -136,9 +136,8 @@ def transformation(image):
 
     # GET BIGGEST CONTOUR ##
 
-    simplified_contours = np.array(simplified_contours)
-    biggest_n, approx_contour = biggest_contour(
-        simplified_contours, image_size)
+    simplified_contours = np.array(simplified_contours, dtype=object)
+    biggest_n, approx_contour = biggest_contour(simplified_contours, image_size)
 
     contouredImage = np.copy(image)
     cv2.drawContours(
