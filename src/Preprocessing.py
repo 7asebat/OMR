@@ -101,7 +101,6 @@ def simplify_contour(contour, n_corners=4):
 
 def transformation(image):
     image = image.copy()
-    originalImage = np.copy(image)
     image = cv2.copyMakeBorder(
         image, 250, 250, 250, 250, cv2.BORDER_REPLICATE)
     image_size = image.size
@@ -113,47 +112,46 @@ def transformation(image):
     _, threshold = cv2.threshold(
         blur, 0, 255, cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
 
-    lines_edges = cv2.Canny(threshold, 50, 150, apertureSize=7)
-
     dilate = cv2.dilate(threshold, np.ones(
         (9, 9), np.uint8), iterations=8)
 
     edges = cv2.Canny(dilate, 50, 150, apertureSize=7)
 
     ## FIND CONTOUR ##
-    contours, hierarchy = cv2.findContours(
+    contours, _ = cv2.findContours(
         edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    img_with_contours = np.copy(image)
-    cv2.drawContours(img_with_contours, contours, -1, (0, 255, 0), 3)
+    # img_with_contours = np.copy(image)
+    # cv2.drawContours(img_with_contours, contours, -1, (0, 255, 0), 3)
     simplified_contours = []
     for cnt in contours:
         hull = cv2.convexHull(cnt)
         simplified_contours.append(cv2.approxPolyDP(hull,
                                                     0.0001*cv2.arcLength(hull, True), True))
-    img_with_simplified_contours = np.copy(image)
-    cv2.drawContours(img_with_simplified_contours,
-                     simplified_contours, -1, (255, 0, 0), 3)
+    # img_with_simplified_contours = np.copy(image)
+    # cv2.drawContours(img_with_simplified_contours,
+    #                  simplified_contours, -1, (255, 0, 0), 3)
 
     # GET BIGGEST CONTOUR ##
 
     simplified_contours = np.array(simplified_contours, dtype=object)
-    biggest_n, approx_contour = biggest_contour(simplified_contours, image_size)
+    biggest_n, _ = biggest_contour(
+        simplified_contours, image_size)
 
-    contouredImage = np.copy(image)
-    cv2.drawContours(
-        contouredImage, simplified_contours, biggest_n, (0, 0, 255), 3)
+    # contouredImage = np.copy(image)
+    # cv2.drawContours(
+    #     contouredImage, simplified_contours, biggest_n, (0, 0, 255), 3)
 
-    quad_img = np.copy(image)
-    quadContour = simplify_contour(simplified_contours[biggest_n], 4)
-    img_with_quadContour = cv2.drawContours(
-        quad_img, [quadContour], 0, (0, 0, 255), 2)
+    # quad_img = np.copy(image)
+    # quadContour = simplify_contour(simplified_contours[biggest_n], 4)
+    # img_with_quadContour = cv2.drawContours(
+    #     quad_img, [quadContour], 0, (0, 0, 255), 2)
 
-    rect_img = np.copy(image)
+    # rect_img = np.copy(image)
 
     rect = cv2.minAreaRect(simplified_contours[biggest_n])
     box = cv2.boxPoints(rect)
     box = np.int0(box)
-    img_with_rect = cv2.drawContours(rect_img, [box], 0, (0, 0, 255), 2)
+    # img_with_rect = cv2.drawContours(rect_img, [box], 0, (0, 0, 255), 2)
 
     dst = image
     dst = four_point_transform(image, box)
