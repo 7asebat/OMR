@@ -101,6 +101,7 @@ def simplify_contour(contour, n_corners=4):
 
 def transformation(image):
     image = image.copy()
+    # originalImage = np.copy(image)
     image = cv2.copyMakeBorder(
         image, 250, 250, 250, 250, cv2.BORDER_REPLICATE)
     image_size = image.size
@@ -112,13 +113,15 @@ def transformation(image):
     _, threshold = cv2.threshold(
         blur, 0, 255, cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
 
+    # lines_edges = cv2.Canny(threshold, 50, 150, apertureSize=7)
+
     dilate = cv2.dilate(threshold, np.ones(
         (9, 9), np.uint8), iterations=8)
 
     edges = cv2.Canny(dilate, 50, 150, apertureSize=7)
 
     ## FIND CONTOUR ##
-    contours, _ = cv2.findContours(
+    contours, hierarchy = cv2.findContours(
         edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     # img_with_contours = np.copy(image)
     # cv2.drawContours(img_with_contours, contours, -1, (0, 255, 0), 3)
@@ -133,8 +136,8 @@ def transformation(image):
 
     # GET BIGGEST CONTOUR ##
 
-    simplified_contours = np.array(simplified_contours, dtype=object)
-    biggest_n, _ = biggest_contour(
+    simplified_contours = np.array(simplified_contours)
+    biggest_n, approx_contour = biggest_contour(
         simplified_contours, image_size)
 
     # contouredImage = np.copy(image)
@@ -159,7 +162,6 @@ def transformation(image):
     croppedImage = np.copy(dst)
 
     return croppedImage
-
 
 # **Sharpen the image using Kernel Sharpening Technique**
 
