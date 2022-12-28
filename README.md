@@ -2,7 +2,7 @@
 Image Processing (_CMP362_) course project, Fall 2020.
 
 ## Instructions
-1. `conda env create -f requirements.txt`
+1. `conda env create -f requirements.yml`
 2. `python main.py​ <input-folder> <output-folder>`  
 Where ​`<input-folder>`​ is the absolute path for input folder which contains the input
 samples and ​`<output-folder>`​ is the absolute path for the output folder.
